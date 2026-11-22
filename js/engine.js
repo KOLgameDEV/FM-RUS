@@ -273,11 +273,31 @@ function newCareer(clubId, managerName) {
   genCupFixtures(S);
   return S;
 }
+function kitShift(hex, amt) {
+  const n = parseInt(String(hex).slice(1), 16) || 0;
+  const f = v => Math.max(0, Math.min(255, v + amt));
+  return '#' + ((f(n >> 16 & 255) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0');
+}
+function kitGap(a, b) {
+  const pa = parseInt(String(a).slice(1), 16) || 0, pb = parseInt(String(b).slice(1), 16) || 0;
+  return Math.abs((pa >> 16 & 255) - (pb >> 16 & 255)) + Math.abs((pa >> 8 & 255) - (pb >> 8 & 255)) + Math.abs((pa & 255) - (pb & 255));
+}
+const KIT_N = 24;               // must match UI.KIT_PATTERNS.length
+const GK_HIGHVIS = ['#f5d000', '#b6ff3b', '#ff8c42', '#00e5ff', '#ff2d95', '#ffffff'];
+function gkHighVis(avoid) {
+  let best = GK_HIGHVIS[0], score = -1;
+  GK_HIGHVIS.forEach(c => {
+    const s = Math.min.apply(null, avoid.map(a => kitGap(c, a)));
+    if (s > score) { score = s; best = c; }
+  });
+  return best;
+}
 function defaultKit(club, hashIdx) {
-  return {
-    home: { design: hashIdx % 36, primary: club.color, secondary: club.color2, socks: club.color },
-    away: { design: (hashIdx + 11) % 36, primary: club.color2 === '#ffffff' ? club.color : club.color2, secondary: club.color, socks: club.color2 },
-  };
+  const c2 = club.color2 === club.color ? kitShift(club.color, -60) : club.color2;
+  const home = { design: hashIdx % KIT_N, primary: club.color, secondary: c2, shorts: c2.toLowerCase() === '#ffffff' ? club.color : c2, socks: club.color };
+  const away = { design: (hashIdx + 11) % KIT_N, primary: club.color2 === '#ffffff' ? club.color : club.color2, secondary: club.color, shorts: club.color, socks: club.color2 };
+  const goal = { design: 0, primary: gkHighVis([home.primary, home.secondary, away.primary]), secondary: '#111111', shorts: '#111111', socks: '#111111' };
+  return { home, away, goal };
 }
 function welcomeMessages(club) {
   return [

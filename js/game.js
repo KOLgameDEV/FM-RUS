@@ -14,7 +14,7 @@ const G = {
     pickLeague: 'rpl', pickCountry: 'ru',
     squadFilter: 'all', marketCountry: 'eng', marketFeat: 'all', marketPos: 'all', marketFloor: 50,
     tableLeague: null, selectedSlot: -1, viewingPlayer: null,
-    inboxOpen: {}, kitHome: 0, kitAwayPart: 'primary', msgIdx: 0,
+    inboxOpen: {}, msgIdx: 0,
   },
 };
 
@@ -147,23 +147,21 @@ const ACT = {
     go('kits');
   },
   'mgr-name'(el) { /* input event handled separately */ },
-  // kits
-  'kit-design'(el) { G.ui.kitDesign = +el.dataset.i; go('kits'); },
-  'kit-tone'(el) { G.ui.kitTone = +el.dataset.v; go('kits'); },
-  'kit-part'(el) { G.ui.kitAwayPart = el.dataset.v; go('kits'); },
-  'kit-color'(el) { G.ui.kitAwayColor = el.dataset.v; go('kits'); },
+  // kit studio
+  'kit-part'(el) { G.ui.kitPart[el.dataset.k] = el.dataset.v; UI.kitRepaint(el.dataset.k); },
+  'kit-color'(el) { UI.kitDraft(el.dataset.k)[G.ui.kitPart[el.dataset.k]] = el.dataset.c; UI.kitRepaint(el.dataset.k); },
+  'kit-design'(el) { UI.kitDraft(el.dataset.k).design = +el.dataset.i; UI.kitRepaint(el.dataset.k); },
+  'kit-reset'(el) {
+    const k = el.dataset.k, fresh = UI.kitDefaults(GD.CLUBS.find(c => c.id === G.ui.pickClub));
+    G.ui.kitDraft[k] = fresh[k]; UI.kitRepaint(k);
+  },
+  'kit-gk-auto'() { UI.kitGkAuto(); UI.kitRepaint('goal'); },
   'kit-start'(el) {
     const name = (document.getElementById('mgr-name') || {}).value || 'А. Рубанова';
     const club = GD.CLUBS.find(c => c.id === G.ui.pickClub);
     const S = ENG.newCareer(club.id, name);
-    const tone = G.ui.kitTone || 0;
-    S.kit.home.design = G.ui.kitDesign % 12;
-    S.kit.home.primary = club.color; S.kit.home.secondary = club.color2;
-    if (tone === 1) { S.kit.home.primary = club.color2 === '#ffffff' ? club.color : club.color2; }
-    if (tone === 2) { S.kit.home.primary = shade(club.color, -25); }
-    if (tone === 3) { S.kit.home.primary = club.color; S.kit.home.secondary = shade(club.color2, 20); }
-    if (G.ui.kitAwayColor) { S.kit.away.primary = G.ui.kitAwayColor; }
-    S.kit.away.design = (G.ui.kitDesign + 5) % 12;
+    const d = G.ui.kitDraft || UI.kitDefaults(club);
+    S.kit = { home: Object.assign({}, d.home), away: Object.assign({}, d.away), goal: Object.assign({}, d.goal) };
     G.S = S;
     G.folder.slots[G.slotIdx] = S;
     saveGame();

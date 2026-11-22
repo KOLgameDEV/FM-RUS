@@ -31,30 +31,126 @@ function trophySvg(kind, size) {
     <path d="M20 30h8l1 6h-10l1-6z" fill="${col}"/><rect x="14" y="38" width="20" height="4" rx="2" fill="${col}"/>
   </svg>`;
 }
-const KIT_DESIGNS = ['Сплошная', 'Вертикальные полосы', 'Горизонтальные полосы', 'Диагональ', 'Саше', 'Половина', 'Кольцо', 'Шеврон', 'Шахматка', 'Центральная полоса', 'Пояс', 'Центральный шов'];
-function shirtSvg(design, c1, c2, size) {
-  const w = size || 56, h = Math.round(w * 0.9);
-  const body = `<rect x="10" y="10" width="${w - 20}" height="${h - 14}" rx="6" fill="${c1}"/>
-    <path d="M10 10 L${w / 2 - 10} 2 L${w / 2 + 10} 2 L${w - 10} 10 Z" fill="${c1}"/>
-    <rect x="2" y="10" width="9" height="22" rx="4" fill="${c2}"/><rect x="${w - 11}" y="10" width="9" height="22" rx="4" fill="${c2}"/>`;
-  let deco = '';
-  const inner = `<svg viewBox="0 0 ${w} ${h}">`;
-  const clip = `<clipPath id="cp${design}${w}"><rect x="10" y="10" width="${w - 20}" height="${h - 14}" rx="6"/></clipPath>`;
-  const D = [
-    '',
-    `<g clip-path="url(#cp${design}${w})">${[...Array(5)].map((_, i) => `<rect x="${12 + i * ((w - 24) / 5)}" y="10" width="${(w - 24) / 10}" height="${h}" fill="${c2}"/>`).join('')}</g>`,
-    `<g clip-path="url(#cp${design}${w})">${[...Array(4)].map((_, i) => `<rect x="10" y="${12 + i * ((h - 14) / 4)}" width="${w}" height="${(h - 14) / 8}" fill="${c2}"/>`).join('')}</g>`,
-    `<g clip-path="url(#cp${design}${w})"><path d="M10 ${h} L${w} 10 L${w} 26 L26 ${h} Z" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><path d="M10 12 L${w - 10} ${h - 4} L${w - 10} ${h + 4} L10 20 Z" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><rect x="${w / 2}" y="0" width="${w}" height="${h}" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><rect x="10" y="${h / 2 - 5}" width="${w - 20}" height="10" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><path d="M10 ${h * 0.35} L${w / 2} ${h * 0.55} L${w - 10} ${h * 0.35} L${w - 10} ${h * 0.5} L${w / 2} ${h * 0.7} L10 ${h * 0.5} Z" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})">${[...Array(4)].map((_, r) => [...Array(4)].map((_, c) => (r + c) % 2 ? `<rect x="${12 + c * (w - 24) / 4}" y="${12 + r * (h - 16) / 4}" width="${(w - 24) / 4}" height="${(h - 16) / 4}" fill="${c2}"/>` : '').join('')).join('')}</g>`,
-    `<g clip-path="url(#cp${design}${w})"><rect x="${w / 2 - 5}" y="0" width="10" height="${h}" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><rect x="0" y="${h * 0.6}" width="${w}" height="9" fill="${c2}"/></g>`,
-    `<g clip-path="url(#cp${design}${w})"><rect x="${w / 2 - 1}" y="0" width="2" height="${h}" fill="${c2}"/></g>`,
-  ];
-  return `${inner}<defs>${clip}</defs>${body}${D[design % 12]}</svg>`;
+// ---------- kit studio: geometry, patterns, palettes ----------
+// art lives in a fixed 100x86 space, so one set of patterns scales with any svg size
+const KIT_GEO = {
+  shirt: 'M36 6 L22 10 L4 20 L12 36 L21 32 L19 80 L81 80 L79 32 L88 36 L96 20 L78 10 L64 6 C64 6 58 15 50 15 C42 15 36 6 36 6 Z',
+  sleeveL: 'M22 10 L4 20 L12 36 L21 32 Z',
+  sleeveR: 'M78 10 L96 20 L88 36 L79 32 Z',
+  collar: 'M36 6 C42 15 58 15 64 6',
+  shorts: 'M22 6 H78 L84 64 H60 L50 30 L40 64 H16 Z',
+  sock: x => `M${x} 10 h22 v50 q0 6 -6 6 h-10 q-6 0 -6 -6 z`,
+};
+const HEM = 80;
+const seq = (n, f) => [...Array(n)].map((_, i) => f(i)).join('');
+const KIT_PATTERNS = [
+  { n: 'Сплошная', d: () => '' },
+  { n: 'Вертикальные полосы', d: t => seq(7, i => `<rect x="${-4 + i * 15}" y="0" width="8" height="${HEM}" fill="${t}"/>`) },
+  { n: 'Горизонтальные полосы', d: t => seq(5, i => `<rect x="0" y="${2 + i * 17}" width="100" height="8" fill="${t}"/>`) },
+  { n: 'Диагональ', d: t => `<path d="M14 0 L40 0 L100 58 L100 78 Z" fill="${t}"/>` },
+  { n: 'Двойная диагональ', d: t => `<path d="M0 0 H16 L100 84 V96 H80 L0 16 Z" fill="${t}"/><path d="M34 0 H50 L100 50 V64 L88 56 Z" fill="${t}"/>` },
+  { n: 'Половинное деление', d: t => `<rect x="50" y="0" width="50" height="${HEM}" fill="${t}"/>` },
+  { n: 'Кольцо', d: t => `<rect x="0" y="28" width="100" height="11" fill="${t}"/>` },
+  { n: 'Двойное кольцо', d: t => `<rect x="0" y="22" width="100" height="9" fill="${t}"/><rect x="0" y="38" width="100" height="9" fill="${t}"/>` },
+  { n: 'Пояс', d: t => `<rect x="0" y="54" width="100" height="14" fill="${t}"/>` },
+  { n: 'Шеврон', d: t => `<path d="M0 16 L50 42 L100 16 L100 32 L50 58 L0 32 Z" fill="${t}"/>` },
+  { n: 'Саше', d: t => `<path d="M0 0 L24 0 L50 52 L76 0 L100 0 L62 ${HEM} L38 ${HEM} Z" fill="${t}"/>` },
+  { n: 'Шахматка', d: t => seq(4, r => seq(5, c => (r + c) % 2 ? `<rect x="${c * 20}" y="${r * 20}" width="20" height="20" fill="${t}"/>` : '')) },
+  { n: 'Центральная полоса', d: t => `<rect x="41" y="0" width="18" height="${HEM}" fill="${t}"/>` },
+  { n: 'Три кантона', d: t => seq(3, i => `<rect x="${27 + i * 21.5}" y="0" width="3" height="${HEM}" fill="${t}"/>`) },
+  { n: 'Крест', d: t => `<rect x="44" y="0" width="12" height="${HEM}" fill="${t}"/><rect x="0" y="30" width="100" height="12" fill="${t}"/>` },
+  { n: 'Кокетка', d: t => `<path d="M0 0 H100 V22 L50 34 L0 22 Z" fill="${t}"/>` },
+  { n: 'Лучи', d: t => seq(5, i => `<path d="M50 ${HEM} L${i * 26 - 3} 0 L${i * 26 + 9} 0 Z" fill="${t}"/>`) },
+  { n: 'Волны', d: t => `<g fill="none" stroke="${t}" stroke-width="7"><path d="M0 30 Q12 18 25 30 T50 30 T75 30 T100 30"/><path d="M0 56 Q12 44 25 56 T50 56 T75 56 T100 56"/></g>` },
+  { n: 'Точки', d: t => seq(4, r => seq(5, c => `<circle cx="${12 + c * 19}" cy="${14 + r * 20}" r="5" fill="${t}"/>`)) },
+  { n: 'Треугольники', d: t => seq(5, i => `<path d="M${i * 20} ${HEM} L${i * 20 + 10} 56 L${i * 20 + 20} ${HEM} Z" fill="${t}"/>`) },
+  { n: 'Омбре', d: t => seq(4, i => `<rect x="0" y="${i * 20}" width="100" height="20" fill="${t}" opacity="${(0.85 - i * 0.22).toFixed(2)}"/>`) },
+  { n: 'Блоки', d: t => `<rect x="0" y="0" width="50" height="30" fill="${t}"/><rect x="50" y="50" width="50" height="30" fill="${t}"/>` },
+  { n: 'Контрастные рукава', d: t => `<path d="${KIT_GEO.sleeveL}" fill="${t}"/><path d="${KIT_GEO.sleeveR}" fill="${t}"/>` },
+  { n: 'Ромбы', d: t => seq(4, r => seq(4, c => `<path d="M${12 + c * 25} ${4 + r * 20} L${24 + c * 25} ${15 + r * 20} L${12 + c * 25} ${26 + r * 20} L${0 + c * 25} ${15 + r * 20} Z" fill="${t}"/>`)) },
+];
+// palette names are shared by the previews and the club row that ui builds at runtime
+const KIT_PALETTE = [
+  ['Классические', [['#ffffff', 'Белый'], ['#111111', 'Чёрный'], ['#0b3d91', 'Тёмно-синий'], ['#c8102e', 'Красный'], ['#0d5c38', 'Лесной'], ['#6b1d2a', 'Бордовый'], ['#8b95a1', 'Серый'], ['#f5f0e6', 'Кремовый'], ['#d6a85c', 'Золото']]],
+  ['Яркие', [['#f2c200', 'Жёлтый'], ['#ff6b00', 'Оранжевый'], ['#e10600', 'Алый'], ['#b6ff3b', 'Лайм'], ['#00b3a4', 'Бирюза'], ['#7ec8e3', 'Небесный'], ['#a50044', 'Фуксия'], ['#8a2be2', 'Фиолет'], ['#ff9ec7', 'Розовый']]],
+  ['Глубокие', [['#1d4e89', 'Кобальт'], ['#004d98', 'Индиго'], ['#1338be', 'Электрик'], ['#012169', 'Флот'], ['#14532d', 'Хвоя'], ['#3b0d1c', 'Коньяк'], ['#1f2937', 'Графит'], ['#4b3621', 'Кофейный']]],
+];
+const KIT_GK_COLORS = [['#f5d000', 'Визовый жёлтый'], ['#b6ff3b', 'Кислотный'], ['#ff8c42', 'Оранж'], ['#00e5ff', 'Циан'], ['#ff2d95', 'Магента'], ['#7cff00', 'Салат'], ['#ffea00', 'Жёлтокислот'], ['#ffffff', 'Белый'], ['#ff5ec4', 'Розовый неон'], ['#00ffd0', 'Мята']];
+const KIT_PARTS = [['primary', 'База'], ['secondary', 'Отделка'], ['shorts', 'Шорты'], ['socks', 'Гетры']];
+const KIT_TITLES = {
+  home: ['Домашняя', 'Основной комплект — в нём команда выходит дома.'],
+  away: ['Гостевая', 'Не должна сливаться с домашней: совет подбирает контраст.'],
+  goal: ['Вратарская', 'Отдельный комплект вратаря. Ключевое — отличие от полевых.'],
+};
+let kitUid = 0;
+function lum(hex) {
+  const n = parseInt(String(hex).slice(1), 16) || 0;
+  return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255;
+}
+function inkOn(hex) { return lum(hex) > 0.62 ? '#15181a' : '#ffffff'; }
+// outline flips on dark kits so black gear stays visible on the dark UI
+function edgeOf(hex) { return lum(hex) > 0.45 ? 'rgba(0,0,0,.45)' : 'rgba(255,255,255,.34)'; }
+function colorDist(a, b) {
+  const pa = parseInt(String(a).slice(1), 16) || 0, pb = parseInt(String(b).slice(1), 16) || 0;
+  return Math.abs((pa >> 16 & 255) - (pb >> 16 & 255)) + Math.abs((pa >> 8 & 255) - (pb >> 8 & 255)) + Math.abs((pa & 255) - (pb & 255));
+}
+function kitColorName(c) {
+  for (const [, list] of KIT_PALETTE.concat([['вратарская', KIT_GK_COLORS]])) {
+    const hit = list.find(x => x[0].toLowerCase() === String(c).toLowerCase());
+    if (hit) return hit[1];
+  }
+  return String(c).toUpperCase();
+}
+function patIdx(design) { return ((design | 0) % KIT_PATTERNS.length + KIT_PATTERNS.length) % KIT_PATTERNS.length; }
+function shirtSvg(design, c1, c2, size, o) {
+  const opt = o || {}, id = 'kg' + (++kitUid), i = patIdx(design), trim = opt.trim || c2;
+  const dim = size ? ` width="${size}" height="${Math.round(size * 0.86)}"` : '';
+  return `<svg class="kit-art"${dim} viewBox="0 0 100 86" fill="none" aria-hidden="true">
+  <defs><clipPath id="${id}"><path d="${KIT_GEO.shirt}"/></clipPath></defs>
+  <path d="${KIT_GEO.shirt}" fill="${c1}"/>
+  <g clip-path="url(#${id})">${KIT_PATTERNS[i].d(trim, c1)}</g>
+  ${i === 22 ? '' : `<g clip-path="url(#${id})" opacity=".9"><path d="M7 19 L13 33" stroke="${trim}" stroke-width="4"/><path d="M93 19 L87 33" stroke="${trim}" stroke-width="4"/></g>`}
+  <path d="${KIT_GEO.shirt}" fill="none" stroke="${edgeOf(c1)}" stroke-width="1.6"/>
+  <path d="${KIT_GEO.collar}" fill="none" stroke="${trim}" stroke-width="4.5" stroke-linecap="round"/>
+  ${opt.num ? `<text x="50" y="58" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-size="21" font-weight="700" fill="${opt.ink || inkOn(c1)}">${esc(opt.num)}</text>` : ''}
+</svg>`;
+}
+function shortsSvg(c1, trim, num) {
+  const id = 'sh' + (++kitUid);
+  return `<svg class="kit-art" viewBox="0 0 100 74" fill="none" aria-hidden="true">
+  <defs><clipPath id="${id}"><path d="${KIT_GEO.shorts}"/></clipPath></defs>
+  <path d="${KIT_GEO.shorts}" fill="${c1}"/>
+  <g clip-path="url(#${id})"><path d="M22 6 H78 L79 17 H21 Z" fill="${trim}"/><path d="M24 18 L27 66" stroke="${trim}" stroke-width="5"/><path d="M76 18 L73 66" stroke="${trim}" stroke-width="5"/></g>
+  <path d="${KIT_GEO.shorts}" fill="none" stroke="${edgeOf(c1)}" stroke-width="1.6"/>
+  ${num ? `<text x="31" y="42" text-anchor="middle" font-family="Unbounded, Manrope, sans-serif" font-size="15" font-weight="700" fill="${inkOn(c1)}">${esc(num)}</text>` : ''}
+</svg>`;
+}
+function socksSvg(c1, trim) {
+  const pair = x => `<path d="${KIT_GEO.sock(x)}" fill="${c1}"/>
+    <rect x="${x}" y="10" width="22" height="7" fill="${trim}"/>
+    <rect x="${x}" y="24" width="22" height="5" fill="${trim}" opacity=".6"/>
+    <path d="${KIT_GEO.sock(x)}" fill="none" stroke="${edgeOf(c1)}" stroke-width="1.6"/>`;
+  return `<svg class="kit-art" viewBox="0 0 100 74" fill="none" aria-hidden="true">${pair(20)}${pair(56)}</svg>`;
+}
+// kit-independent helpers
+function clubKitColors(club) {
+  return [[club.color, 'Клубный основной'], [club.color2, 'Клубный второй'], [shade(club.color, -22), 'Клубный тёмный'], [shade(club.color, 26), 'Клубный светлый'], [shade(club.color2, -22), 'Второй тёмный']];
+}
+function contrastColor(avoid, pool) {
+  let best = pool[0][0], bestScore = -1;
+  pool.forEach(([c]) => {
+    const score = Math.min(...avoid.map(a => colorDist(c, a)));
+    if (score > bestScore) { bestScore = score; best = c; }
+  });
+  return best;
+}
+function kitDefaults(club) {
+  const c1 = club.color, c2 = club.color2 === club.color ? shade(club.color, -25) : club.color2;
+  const home = { design: 0, primary: c1, secondary: c2, shorts: c2 === '#ffffff' ? c1 : c2, socks: c1 };
+  const awayC = lum(c1) > 0.62 ? '#111111' : '#ffffff';
+  const away = { design: 6, primary: awayC, secondary: c1, shorts: c1, socks: awayC };
+  const goal = { design: 0, primary: contrastColor([home.primary, home.secondary, away.primary], KIT_GK_COLORS), secondary: '#111111', shorts: '#111111', socks: '#111111' };
+  return { home, away, goal };
 }
 
 // ---------- screens ----------
@@ -114,32 +210,122 @@ function scrPick() {
 }
 function scrKits() {
   const club = GD.CLUBS.find(c => c.id === G.ui.pickClub);
-  const tone = G.ui.kitTone || 0;
-  const design = G.ui.kitDesign || 0;
-  const homeC2 = club.color2;
-  let homeC1 = club.color;
-  if (tone === 1) homeC1 = club.color2 === '#ffffff' ? club.color : club.color2;
-  if (tone === 2) homeC1 = shade(club.color, -25);
-  if (tone === 3) homeC1 = club.color;
-  const awayC1 = G.ui.kitAwayColor || (club.color2 === '#ffffff' ? '#1a1a1a' : club.color2);
-  const COLORS = ['#1d4e89', '#c8102e', '#0d5c38', '#0b3d91', '#f2c200', '#111111', '#ffffff', '#6b1d2a', '#7ec8e3', '#b6ff3b', '#d4af37', '#8b1e3f', '#a50044', '#004d98', '#f26b1f', '#1f4e79', '#e10600', '#6cabdd'];
+  if (!club) { G.screen = 'pick'; return scrPick(); }
+  if (G.ui.kitDraftClub !== club.id) {
+    G.ui.kitDraft = kitDefaults(club);
+    G.ui.kitDraftClub = club.id;
+    G.ui.kitPart = { home: 'primary', away: 'primary', goal: 'primary' };
+  }
   return `
-  <div class="kicker">Перед стартом</div><h1>Форма «${esc(club.name)}»</h1>
-  <div class="card"><h3>Домашняя</h3>
-    <div style="display:flex;gap:14px;align-items:center">
-      ${shirtSvg(design, homeC1, homeC2, 90)} ${shirtSvg(design, homeC1, homeC2, 90)}
-      <div class="grow muted small">Два комплекта: основной и вратарский. Тон и фасон.</div>
+  <div class="kicker">Новая карьера · ${esc(club.name)}</div><h1>Форма на сезон</h1>
+  <p class="muted small">24 фасона и палитра для каждой детали: база, отделка, шорты, гетры. Вратарская форма — отдельным блоком.</p>
+  ${kitCard('home', club)}
+  ${kitCard('away', club)}
+  ${kitCard('goal', club)}
+  <div class="note">Клубные тона подставляются в домашнюю форму по умолчанию, но менять можно всё. Гостевая и вратарская проверяются на контраст — так в матче не будет совпадений цветов.</div>
+  <button class="btn" data-act="kit-start" style="width:100%">Начать сезон за «${esc(club.name)}»</button>`;
+}
+function kitDraft(k) { return G.ui.kitDraft && G.ui.kitDraft[k]; }
+function kitPart(k) { return (G.ui.kitPart && G.ui.kitPart[k]) || 'primary'; }
+function kitPartName(k) { return (KIT_PARTS.find(p => p[0] === kitPart(k)) || KIT_PARTS[0])[1]; }
+function kitFigureHtml(k) {
+  const d = kitDraft(k), num = k === 'goal' ? 1 : k === 'away' ? 10 : 7;
+  return `<div class="kit-fig">
+    <div class="kit-fig-shirt">${shirtSvg(d.design, d.primary, d.secondary, 0, { num })}</div>
+    <div class="kit-fig-side">${shortsSvg(d.shorts, d.secondary, num)}${socksSvg(d.socks, d.secondary)}</div>
+  </div>`;
+}
+function kitTagsHtml(k) {
+  const d = kitDraft(k);
+  return `<span class="kit-tag kit-tag-pat">${esc(KIT_PATTERNS[patIdx(d.design)].n)}</span>`
+    + KIT_PARTS.map(([p, n]) => `<span class="kit-tag"><i style="background:${d[p]}"></i>${n} · ${esc(kitColorName(d[p]))}</span>`).join('');
+}
+function kitPartsHtml(k) {
+  const cur = kitPart(k);
+  return KIT_PARTS.map(([p, n]) => `<button class="chip ${cur === p ? 'on' : ''}" data-act="kit-part" data-k="${k}" data-v="${p}">${n}</button>`).join('');
+}
+function kitPaletteHtml(k, club) {
+  const d = kitDraft(k), part = kitPart(k), seen = new Set();
+  const groups = [['Клубные', clubKitColors(club)]].concat(KIT_PALETTE);
+  if (k === 'goal') groups.splice(1, 0, ['Неоновые вратарские', KIT_GK_COLORS]);
+  return groups.map(([name, list]) => {
+    const items = list.filter(([c]) => !seen.has(c.toLowerCase()) && seen.add(c.toLowerCase()));
+    if (!items.length) return '';
+    return `<div class="kit-pal-group"><div class="muted small">${esc(name)}</div><div class="kit-pal">${
+      items.map(([c, n]) => `<button class="sw ${String(d[part]).toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-act="kit-color" data-k="${k}" data-c="${c}" title="${esc(n)}" style="background:${c}"></button>`).join('')
+    }</div></div>`;
+  }).join('');
+}
+function kitPatternsHtml(k) {
+  const d = kitDraft(k), cur = patIdx(d.design);
+  return KIT_PATTERNS.map((p, i) => `<button class="kit-cell ${cur === i ? 'on' : ''}" data-act="kit-design" data-k="${k}" data-i="${i}" title="${esc(p.n)}">${shirtSvg(i, d.primary, d.secondary, 0)}</button>`).join('');
+}
+function kitWarnHtml(k) {
+  const d = kitDraft(k), out = [];
+  if (colorDist(d.primary, d.secondary) < 55) out.push(['warn', 'База и отделка почти одного тона — узор не будет читаться.']);
+  if (k === 'away') {
+    const h = kitDraft('home');
+    if (h && colorDist(d.primary, h.primary) < 110) out.push(['warn', 'Гостевая близка к домашней. На выезде возможна путаница цветов.']);
+    else out.push(['ok', 'Гостевая отличается от домашней.']);
+  }
+  if (k === 'goal') {
+    const h = kitDraft('home');
+    if (h && colorDist(d.primary, h.primary) < 150) out.push(['warn', 'Вратарь теряется на фоне своих полевых игроков.']);
+    else out.push(['ok', 'Вратарь контрастирует с полевым комплектом.']);
+  }
+  return out.map(([t, m]) => `<div class="kit-hint ${t}">${m}</div>`).join('');
+}
+function kitCard(k, club) {
+  const [title, sub] = KIT_TITLES[k], gk = k === 'goal';
+  return `<div class="card kit-card${gk ? ' kit-gk' : ''}">
+    <div class="kit-card-head">
+      <div><div class="kit-card-title">${esc(title)}</div><div class="muted small">${esc(sub)}</div></div>
+      ${gk ? '<span class="kit-gk-flag">ВР</span>' : ''}
     </div>
-    <div class="chips">${[0, 1, 2, 3].map(t => `<button class="chip ${tone === t ? 'on' : ''}" data-act="kit-tone" data-v="${t}">Тон ${t + 1}</button>`).join('')}</div>
-    <div class="kit-grid">${[...Array(12)].map((_, i) => `<button class="kit-cell ${design === i ? 'on' : ''}" data-act="kit-design" data-i="${i}" title="${KIT_DESIGNS[i]}">${shirtSvg(i, homeC1, homeC2, 44)}</button>`).join('')}</div>
-  </div>
-  <div class="card"><h3>Гостевая</h3>
-    <div style="display:flex;gap:14px;align-items:center">${shirtSvg(design, awayC1, '#111111', 90)}
-      <div class="grow muted small">Гостевая — любой цвет и любой из 12 фасонов.</div></div>
-    <div class="swatches">${COLORS.map(c => `<button class="sw ${awayC1 === c ? 'on' : ''}" data-act="kit-color" data-v="${c}" style="background:${c}"></button>`).join('')}</div>
-  </div>
-  <div class="note">Домашняя остаётся в тонах клуба, меняется только фасон. Гостевая — любой цвет.</div>
-  <button class="btn" data-act="kit-start" style="width:100%">Начать сезон</button>`;
+    <div class="kit-preview" id="kit-fig-${k}">${kitFigureHtml(k)}</div>
+    <div class="kit-tags" id="kit-tags-${k}">${kitTagsHtml(k)}</div>
+    <div id="kit-warn-${k}">${kitWarnHtml(k)}</div>
+    <div class="kit-label">Деталь формы</div>
+    <div class="chips" id="kit-parts-${k}">${kitPartsHtml(k)}</div>
+    <div class="kit-label">Цвет<span class="muted"> · <b id="kit-partname-${k}">${esc(kitPartName(k))}</b></span></div>
+    <div id="kit-pal-${k}">${kitPaletteHtml(k, club)}</div>
+    <div class="kit-label">Фасон<span class="muted"> · <b id="kit-patname-${k}">${esc(KIT_PATTERNS[patIdx(kitDraft(k).design)].n)}</b></span></div>
+    <div class="kit-grid" id="kit-pat-${k}">${kitPatternsHtml(k)}</div>
+    <div class="btnrow">
+      ${gk ? '<button class="btn ghost small" data-act="kit-gk-auto">Подобрать контраст</button>' : ''}
+      <button class="btn ghost small" data-act="kit-reset" data-k="${k}">Вернуть клубное</button>
+    </div>
+  </div>`;
+}
+function kitGkAuto() {
+  const d = G.ui.kitDraft;
+  if (!d) return;
+  const pool = KIT_GK_COLORS.concat(KIT_PALETTE[1][1], KIT_PALETTE[0][1]);
+  d.primary = contrastColor([d.home.primary, d.home.secondary, d.away.primary], pool);
+  d.design = 0;
+}
+// targeted repaint: keeps the page scroll position while the coach picks colors
+function kitRepaint(k) {
+  const keys = k ? [k] : ['home', 'away', 'goal'];
+  const club = GD.CLUBS.find(c => c.id === G.ui.pickClub);
+  if (!club) return;
+  keys.forEach(key => {
+    const d = kitDraft(key); if (!d) return;
+    const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+    set('kit-fig-' + key, kitFigureHtml(key));
+    set('kit-tags-' + key, kitTagsHtml(key));
+    set('kit-warn-' + key, kitWarnHtml(key));
+    set('kit-parts-' + key, kitPartsHtml(key));
+    set('kit-pal-' + key, kitPaletteHtml(key, club));
+    set('kit-pat-' + key, kitPatternsHtml(key));
+    const pn = document.getElementById('kit-partname-' + key); if (pn) pn.textContent = kitPartName(key);
+    const dn = document.getElementById('kit-patname-' + key); if (dn) dn.textContent = KIT_PATTERNS[patIdx(d.design)].n;
+  });
+  // away/goal warnings compare against the home kit, so they refresh with any change
+  ['away', 'goal'].forEach(other => {
+    const el = document.getElementById('kit-warn-' + other);
+    if (el && kitDraft(other)) el.innerHTML = kitWarnHtml(other);
+  });
 }
 function scrDesk() {
   const club = ENG.myClub(G.S);
@@ -709,7 +895,8 @@ function initEvents() {
   });
 }
 
-return { esc, badge, ovrCls, posTag, pname, myNextFixture, avgCond, trophySvg, shirtSvg, KIT_DESIGNS,
+return { esc, badge, ovrCls, posTag, pname, myNextFixture, avgCond, trophySvg,
+  shirtSvg, shortsSvg, socksSvg, KIT_PATTERNS, kitDefaults, kitDraft, kitRepaint, kitGkAuto, kitColorName, colorDist,
   scrBoot, scrHonors, scrPick, scrKits, scrDesk, scrSquad, playerCard, squadRows,
   scrTactics, scrLeague, scrMarket, scrInbox, scrMoney, scrCalendar, scrCups, scrSacked,
   scrMatchPre, scrMatchLive, scrMatchEnd, render, initEvents, updateTacSummary, renderMarketList,

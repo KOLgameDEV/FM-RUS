@@ -72,11 +72,12 @@ function colorDist(a, b) {
   const pa = hex2(a), pb = hex2(b);
   return Math.abs((pa >> 16 & 255) - (pb >> 16 & 255)) + Math.abs((pa >> 8 & 255) - (pb >> 8 & 255)) + Math.abs((pa & 255) - (pb & 255));
 }
-function kitFor(cid) {
+function kitsOf(cid) {
   const S = G.S;
-  if (cid === S.clubId) return S.kit.home;
+  if (cid === S.clubId) return { field: S.kit.home, goal: S.kit.goal || null };
   const club = ENG.clubById(S, cid) || { color: '#cccccc', color2: '#333333' };
-  return { design: ENG.fnv(cid) % 12, primary: club.color, secondary: club.color2, socks: club.color };
+  const k = ENG.defaultKit(club, ENG.fnv(cid));
+  return { field: k.home, goal: k.goal };
 }
 function gkTone(kit, opp) {
   let c = '#f5d000';
@@ -84,7 +85,14 @@ function gkTone(kit, opp) {
   if (colorDist(c, opp.primary) < 200) c = '#ff8c42';
   return c;
 }
-function drawPlayer(ctx, x, y, kit, isGk, opp, p, phase, num) {
+function gkKit(team, opp) {
+  return team.goal || { primary: gkTone(team.field, opp.field), secondary: '#1a1a1a', shorts: '#1a1a1a', socks: '#1a1a1a' };
+}
+function inkOf(hex) {
+  const n = parseInt(String(hex).slice(1), 16) || 0;
+  return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) / 255 > 0.62 ? '#15181a' : '#ffffff';
+}
+function drawPlayer(ctx, x, y, kit, phase, num) {
   const s = Math.max(10, canvas.h * 0.045);
   ctx.save();
   ctx.translate(x, y);
@@ -96,21 +104,20 @@ function drawPlayer(ctx, x, y, kit, isGk, opp, p, phase, num) {
   ctx.beginPath(); ctx.moveTo(-s * 0.12, s * 0.2); ctx.lineTo(-s * 0.12 + swing, s * 0.85); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(s * 0.12, s * 0.2); ctx.lineTo(s * 0.12 - swing, s * 0.85); ctx.stroke();
   // shorts
-  ctx.fillStyle = isGk ? kit.primary : (kit.secondary || '#fff');
+  ctx.fillStyle = kit.shorts || kit.secondary || '#fff';
   ctx.fillRect(-s * 0.28, s * 0.05, s * 0.56, s * 0.22);
   // shirt
-  const shirt = isGk ? gkTone(kit, opp) : kit.primary;
-  ctx.fillStyle = shirt;
+  ctx.fillStyle = kit.primary;
   ctx.fillRect(-s * 0.34, -s * 0.5, s * 0.68, s * 0.6);
   // sleeve accent
-  ctx.fillStyle = isGk ? '#1a1a1a' : (kit.secondary || '#fff');
+  ctx.fillStyle = kit.secondary || '#fff';
   ctx.fillRect(-s * 0.5, -s * 0.45, s * 0.14, s * 0.3);
   ctx.fillRect(s * 0.36, -s * 0.45, s * 0.14, s * 0.3);
   // head
   ctx.fillStyle = '#e2b48a';
   ctx.beginPath(); ctx.arc(0, -s * 0.72, s * 0.24, 0, 7); ctx.fill();
   // number
-  ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(s * 0.42)}px Outfit, Manrope, sans-serif`;
+  ctx.fillStyle = inkOf(kit.primary); ctx.font = `700 ${Math.round(s * 0.42)}px Outfit, Manrope, sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(num, 0, -s * 0.16);
   ctx.restore();
@@ -153,7 +160,7 @@ function drawFrame(ts) {
   if (!ctx || !live) return;
   const t = ts / 1000;
   drawPitch(t);
-  const homeKit = kitFor(fx.home), awayKit = kitFor(fx.away);
+  const hk = kitsOf(fx.home), ak = kitsOf(fx.away);
   const pts = allPts();
   pts.forEach((q, i) => {
     const p = S_player(q.pid);
@@ -162,8 +169,10 @@ function drawFrame(ts) {
     const isUserMoving = scene.kind === 'pass' && scene.movedPids && scene.movedPids.includes(q.pid);
     const bob = (Math.sin(t * 0.52 + i) + 1) / 2;
     const swing = Math.sin(t * 0.84) * 4 * (isUserMoving ? 2 : 0.3);
-    const opp = q.home ? awayKit : homeKit;
-    drawPlayer(ctx, fp.x + swing * 0.2, fp.y - bob * 2, q.home ? homeKit : awayKit, q.pos === 'GK', opp, p, isUserMoving ? t * 8 : t * 2 + i, p.number);
+    const opp = q.home ? ak : hk;
+    const team = q.home ? hk : ak;
+    const kit = q.pos === 'GK' ? gkKit(team, opp) : team.field;
+    drawPlayer(ctx, fp.x + swing * 0.2, fp.y - bob * 2, kit, isUserMoving ? t * 8 : t * 2 + i, p.number);
   });
   // ball
   const bx = MARGIN.x * 0 + ball.x * canvas.w, by = (MARGIN.ytop + ball.y * (MARGIN.ybot - MARGIN.ytop)) * canvas.h;

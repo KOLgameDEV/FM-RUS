@@ -155,14 +155,38 @@ tr.z-po td:first-child, tr.z-pyr td:first-child { background: rgba(214, 168, 92,
 .strip .cell .v { font: 600 16px 'Unbounded'; margin-top: 2px; }
 .strip .cell .k { font-size: 11px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
 
-/* kit designer */
-.kit-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-.kit-cell { border: 1px solid var(--card-line); border-radius: 8px; background: var(--card); padding: 6px; cursor: pointer; }
-.kit-cell.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
-.kit-cell svg { display: block; width: 100%; }
-.swatches { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; margin: 8px 0; }
-.sw { aspect-ratio: 1; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
-.sw.on { border-color: var(--gold); }
+/* kit studio */
+.kit-card { position: relative; overflow: hidden; }
+.kit-card.kit-gk { border-color: rgba(214, 168, 92, .45); background: linear-gradient(180deg, rgba(214, 168, 92, .09), var(--card) 70%); }
+.kit-gk-flag { flex: 0 0 auto; font: 700 10px 'Manrope'; letter-spacing: .12em; color: var(--gold-text); background: var(--gold); border-radius: 6px; padding: 3px 7px; }
+.kit-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.kit-card-title { font: 600 16px 'Unbounded', 'Manrope', sans-serif; }
+.kit-preview { background: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, .07), rgba(0, 0, 0, .22)); border: 1px solid var(--card-line); border-radius: var(--r-md); padding: 10px 12px; }
+.kit-fig { display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; align-items: center; }
+.kit-fig-shirt .kit-art { width: 100%; max-width: 190px; margin: 0 auto; display: block; }
+.kit-fig-side { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.kit-fig-side .kit-art { width: 100%; display: block; }
+.kit-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
+.kit-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); border: 1px solid var(--card-line); border-radius: 999px; padding: 3px 9px 3px 5px; }
+.kit-tag i { width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .28); }
+.kit-tag-pat { color: var(--gold); border-color: rgba(214, 168, 92, .4); padding-left: 9px; }
+.kit-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+.kit-label b { color: var(--gold); text-transform: none; letter-spacing: 0; }
+.kit-card .chips { margin: 0 0 4px; }
+.kit-pal-group { margin-bottom: 8px; }
+.kit-pal { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 6px; margin-top: 4px; }
+.sw { aspect-ratio: 1; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .22); cursor: pointer; position: relative; }
+.sw:hover { transform: translateY(-1px); }
+.sw.on { border: 2px solid var(--gold); box-shadow: 0 0 0 2px rgba(214, 168, 92, .25); }
+.sw.on::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 13px 'Manrope'; color: var(--gold); text-shadow: 0 1px 3px rgba(0, 0, 0, .85); }
+.kit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 7px; }
+.kit-cell { border: 1px solid var(--card-line); border-radius: 10px; background: rgba(0, 0, 0, .2); padding: 5px; cursor: pointer; transition: transform .12s, border-color .12s; }
+.kit-cell:hover { border-color: rgba(214, 168, 92, .5); transform: translateY(-1px); }
+.kit-cell.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); background: rgba(214, 168, 92, .12); }
+.kit-cell .kit-art { display: block; width: 100%; }
+.kit-hint { font-size: 12.5px; border-radius: var(--r-sm); padding: 7px 10px; margin-top: 8px; border: 1px solid var(--card-line); }
+.kit-hint.warn { color: #f2c9c9; border-color: rgba(226, 59, 59, .45); background: rgba(226, 59, 59, .1); }
+.kit-hint.ok { color: #bfe6c9; border-color: rgba(63, 158, 95, .4); background: rgba(63, 158, 95, .1); }
 
 @media (max-width: 560px) {
   h1 { font-size: 22px; }
