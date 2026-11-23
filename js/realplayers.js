@@ -75,7 +75,7 @@ GD.REALS = [
   { first: 'Флориан', last: 'Вирц', nat: 'Германия', age: 22, pos: 'AM', ovr: 86, pot: 94, club: 'Ливерпуль', league: 'eng', fee: 130 },
   { first: 'Френки', last: 'де Йонг', nat: 'Нидерланды', age: 28, pos: 'MC', ovr: 86, pot: 87, club: 'Барселона', league: 'esp', fee: 30 },
   { first: 'Брэдли', last: 'Барколя', nat: 'Франция', age: 22, pos: 'ML', ovr: 85, pot: 91, club: 'ПСЖ', league: 'fra', fee: 80 },
-  { first: 'Пауло', last: 'Дибала', nat: 'Аргентина', age: 32, pos: 'AM', ovr: 85, pot: 85, club: 'Рома', league: 'ita', fee: 12 },
+  { first: 'Пауло', last: 'Дибала', nat: 'Аргентина', age: 32, pos: 'AM', ovr: 85, pot: 85, club: 'Рома', league: 'ita', fee: 12, era: true },
   { first: 'Фермин', last: 'Лопес', nat: 'Испания', age: 22, pos: 'AM', ovr: 85, pot: 90, club: 'Барселона', league: 'esp', fee: 70 },
   { first: 'Феликс', last: 'Нмеха', nat: 'Германия', age: 24, pos: 'MC', ovr: 85, pot: 88, club: 'Боруссия Дортмунд', league: 'ger', fee: 38 },
   { first: 'Адриен', last: 'Рабио', nat: 'Франция', age: 31, pos: 'MC', ovr: 85, pot: 85, club: 'Марсель', league: 'fra', fee: 10 },
@@ -161,6 +161,17 @@ GD.REALS = [
   { first: 'Оскар', last: 'Боб', nat: 'Норвегия', age: 22, pos: 'MR', ovr: 80, pot: 88, club: 'Манчестер Сити', league: 'eng', fee: 45 },
   { first: 'Мика', last: 'Бирет', nat: 'Бельгия', age: 21, pos: 'DC', ovr: 78, pot: 88, club: 'Байер Леверкузен', league: 'ger', fee: 30 },
   { first: 'Дариуш', last: 'Осман', nat: 'Англия', age: 20, pos: 'ML', ovr: 77, pot: 88, club: 'Борнмут', league: 'eng', fee: 35 },
+
+  // ---- старая эпоха: звёзды 2000-х/2010-х, всё ещё в строю (35+, сезон 2025/26) ----
+  { first: 'Криштиану', last: 'Роналду', nat: 'Португалия', age: 41, pos: 'ST', ovr: 87, pot: 87, club: 'Аль-Наср', league: 'other', fee: 12, era: true },
+  { first: 'Карим', last: 'Бензема', nat: 'Франция', age: 38, pos: 'ST', ovr: 85, pot: 85, club: 'Аль-Иттихад', league: 'other', fee: 10, era: true },
+  { first: 'Луис', last: 'Суарес', nat: 'Уругвай', age: 39, pos: 'ST', ovr: 83, pot: 83, club: 'Насьональ', league: 'other', fee: 5, era: true },
+  { first: 'Маноэль', last: 'Нойер', nat: 'Германия', age: 40, pos: 'GK', ovr: 85, pot: 85, club: 'Бавария', league: 'ger', fee: 6, era: true },
+  { first: 'Энрихе', last: 'Мхитарян', nat: 'Армения', age: 37, pos: 'AM', ovr: 80, pot: 80, club: 'Интер', league: 'ita', fee: 4, era: true },
+  { first: 'Ян', last: 'Зоммер', nat: 'Швейцария', age: 37, pos: 'GK', ovr: 81, pot: 81, club: 'Интер', league: 'ita', fee: 4, era: true },
+  { first: 'Анхель', last: 'Ди Мария', nat: 'Аргентина', age: 38, pos: 'MR', ovr: 82, pot: 82, club: 'Росарио Сентраль', league: 'arg', fee: 4, era: true },
+  { first: 'Франческо', last: 'Ачерби', nat: 'Италия', age: 38, pos: 'DC', ovr: 80, pot: 80, club: 'Интер', league: 'ita', fee: 3, era: true },
+  { first: 'Луис', last: 'Суарес М.', nat: 'Колумбия', age: 38, pos: 'ST', ovr: 79, pot: 79, club: 'Депортиво Толима', league: 'other', fee: 2, era: true },
 ];
 
 if (typeof window !== 'undefined') window.GD = GD;

@@ -220,13 +220,17 @@ function makeSquad(club, rand) {
   return squad;
 }
 
-// ---------- market pool players (deterministic, 32 per extra country) ----------
-const MARKET_BANDS = [[74, 83], [72, 80], [70, 77], [66, 74]];
+// ---------- market pool players (deterministic, deep squad per extra country) ----------
+const MARKET_BANDS = [[77, 85], [74, 82], [71, 79], [69, 77], [67, 75], [65, 73]];
+// возраст чередуется по слоям, чтобы в каждом рынке были юноши, прайм и ветераны
+const AGE_TIERS = [[17, 20], [21, 24], [25, 29], [30, 33], [34, 39]];
+const MK_POS = ['GK', 'DR', 'DL', 'DC', 'DM', 'MC', 'AM', 'MR', 'ML', 'ST'];
 function genMarketPlayer(mk, i, rand) {
-  const pos = pick(['GK', 'DR', 'DL', 'DC', 'DM', 'MC', 'AM', 'MR', 'ML', 'ST'], rand);
-  const band = MARKET_BANDS[Math.min(3, Math.floor(i / 8))];
+  const pos = MK_POS[i % MK_POS.length];
+  const band = MARKET_BANDS[Math.min(MARKET_BANDS.length - 1, Math.floor(i / 8))];
+  const tier = AGE_TIERS[i % AGE_TIERS.length];
   const ovr = rint(rand, band[0], band[1]);
-  const age = rint(rand, 18, 32);
+  const age = rint(rand, tier[0], tier[1]);
   const star = i === 0 && mk.star;
   const mean = 6 + (ovr - 30) / 3.05;
   const attr = () => clamp(Math.round(mean + (rand() * 2 - 1) * 1.7), 4, 19);
@@ -252,22 +256,34 @@ function genMarketPlayer(mk, i, rand) {
   p.wage = Math.max(12, Math.round(v * 0.9));
   return p;
 }
+const MARKET_POOL_SIZE = 48;
 function marketPlayers(mk) {
   const out = [];
-  for (let i = 0; i < 32; i++) {
+  for (let i = 0; i < MARKET_POOL_SIZE; i++) {
     const rand = rng('pool-' + mk.id + '-' + i);
     out.push(genMarketPlayer(mk, i, rand));
   }
   return out;
 }
 function poolPlayers() {
-  // all non-inGame markets materialized lazily via pool:country clubIds
+  // пул заполняет и зарубежные лиги вне движка; inGame-чемпионаты уже покрыты клубными составами,
+  // но для глубины добавляем туда скамейку свободных игроков этой лиги
   const out = [];
-  for (const mk of GD.MARKETS) {
-    if (mk.inGame) continue;
-    out.push(...marketPlayers(mk));
-  }
+  for (const mk of GD.MARKETS) out.push(...marketPlayers(mk));
   return out;
+}
+function ensureMarketDepth(S) {
+  if (!S || !Array.isArray(S.players)) return;
+  if (S.marketDepth >= MARKET_POOL_SIZE) return;
+  const ids = new Set(S.players.map(p => p.id));
+  for (const mk of GD.MARKETS) {
+    for (const p of marketPlayers(mk)) {
+      if (ids.has(p.id)) continue;
+      ids.add(p.id);
+      S.players.push(p);
+    }
+  }
+  S.marketDepth = MARKET_POOL_SIZE;
 }
 
 // ---------- real FC-27 players (GD.REALS) ----------
@@ -291,7 +307,7 @@ function realPlayer(r, i) {
     contract: r.free ? 1 : rint(rand, 2, 4), number: 0,
     injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false, recent: [],
     ovr: clamp(r.ovr, 44, 99), pot: clamp(Math.max(r.pot || r.ovr, r.ovr), 44, 99),
-    growth: 0, real: true, freeAgent: !!r.free, realClub: r.free ? '' : (r.club || ''), league: r.league || 'other',
+    growth: 0, real: true, freeAgent: !!r.free, era: !!r.era || (r.ovr >= 80 && r.age >= 33), realClub: r.free ? '' : (r.club || ''), league: r.league || 'other',
   };
   const usdM = Math.max(0.5, (r.fee || 1) * 1.12); // EUR -> USD
   p.baseValue = Math.max(2, Math.round(usdM * GD.RUB_PER_USD));
@@ -300,10 +316,17 @@ function realPlayer(r, i) {
   return p;
 }
 function ensureReals(S) {
-  if (!GD.REALS || !GD.REALS.length) return;
-  if (S.realsAdded) return;
-  GD.REALS.forEach((r, i) => S.players.push(realPlayer(r, i)));
-  S.realsAdded = true;
+  if (!GD.REALS || !GD.REALS.length || !S || !Array.isArray(S.players)) return;
+  const ids = new Set(S.players.map(p => p.id));
+  let added = false;
+  GD.REALS.forEach((r, i) => {
+    const id = 'real:' + i;
+    if (ids.has(id)) return;
+    ids.add(id);
+    S.players.push(realPlayer(r, i));
+    added = true;
+  });
+  if (added) S.realsAdded = true;
 }
 
 // ---------- in-season value drift (like real markets) ----------
@@ -371,6 +394,7 @@ function newCareer(clubId, managerName) {
   };
   S.tactics.slots = autoLineup(S, clubId, S.tactics.formation).map(x => x.pid);
   ensureReals(S);
+  ensureMarketDepth(S);
   genCupFixtures(S);
   return S;
 }
@@ -1457,6 +1481,7 @@ function migrateSave(s) {
     if (!p.baseValue) p.baseValue = p.value;
   });
   ensureReals(s);
+  ensureMarketDepth(s);
   return s;
 }
 
@@ -1607,7 +1632,7 @@ return {
   fnv, rng, clamp, poisson, pick, rint, F, IW, USD,
   toDate, toISO, addDays, fmtDate, fmtDateFull, fmtDDMM, inWinter,
   attrM, ageMult, valModel, posScore, rating, dynRating, dynMods, recentAvg, fc27Equiv,
-  genPlayer, makeSquad, genMarketPlayer, marketPlayers, poolPlayers,
+  genPlayer, makeSquad, genMarketPlayer, marketPlayers, poolPlayers, ensureMarketDepth,
   realPlayer, ensureReals, revalueAll, benchOf, setBench, BENCH_MAX, migrateSave,
   newCareer, defaultKit,
   ft, ht, tacOf, autoLineup, lineupPlayers, teamScores, ovrXI, lambdas, available,
@@ -1621,3 +1646,4 @@ return {
 };
 })();
 if (typeof module !== 'undefined') module.exports = ENG;
+if (typeof window !== 'undefined') window.ENG = ENG;

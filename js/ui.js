@@ -649,19 +649,23 @@ function scrLeague() {
 }
 
 // ---------- market ----------
-const MK_SECTIONS = [['stars', 'Звёзды FC 27'], ['promise', 'Высокий потенциал'], ['free', 'Свободные агенты'], ['all', 'Лиги и страны']];
-function mkMatches(p, mk) {
+const MK_SECTIONS = [['era', 'Старая эпоха'], ['promise', 'Высокий потенциал'], ['free', 'Свободные агенты'], ['all', 'Лиги и страны']];
+// реальные игроки лиги/страны 65+ + сгенерированный пул этой страны; свободные агенты — только во вкладке «Свободные агенты»
+function inLeagueMarket(p, mk) {
+  const lg = mk.inGame || mk.id;
+  if (p.clubId === 'pool:' + mk.id) return ENG.dynRating(p) >= 65;
+  if (p.real) return p.league === lg && ENG.dynRating(p) >= 65;
   if (mk.inGame) { const c = ENG.clubById(G.S, p.clubId); return c && c.league === mk.inGame; }
-  return p.clubId === 'pool:' + mk.id;
+  return false;
 }
 function marketRows() {
-  const sec = G.ui.marketSection || 'stars';
+  const sec = G.ui.marketSection || 'era';
   const mk = GD.MARKETS.find(m => m.id === G.ui.marketCountry) || GD.MARKETS[0];
   let list = G.S.players.filter(p => p.clubId !== G.S.clubId && !String(p.clubId).startsWith('eu-'));
-  if (sec === 'stars') list = list.filter(p => p.real && p.ovr >= 82);
+  if (sec === 'era') list = list.filter(p => p.era || (p.real && p.age >= 33));
   else if (sec === 'promise') list = list.filter(p => (p.real ? p.pot >= 84 && p.age <= 21 : p.pot - p.ovr >= 5 && p.age <= 21));
   else if (sec === 'free') list = list.filter(p => p.clubId === 'free' || p.freeAgent);
-  else list = list.filter(p => mkMatches(p, mk) || p.clubId === 'free');
+  else list = list.filter(p => inLeagueMarket(p, mk));
   const q = (G.ui.marketSearch || '').trim().toLowerCase();
   if (q) list = list.filter(p => (pname(p) + ' ' + p.nat + ' ' + (p.realClub || '')).toLowerCase().includes(q));
   const featAttr = { tech: 'tec', strong: 'strn', fast: 'pac', shot: 'sho', pass: 'pas', tackle: 'def' }[G.ui.marketFeat];
@@ -673,26 +677,30 @@ function marketRows() {
   const age = G.ui.marketAge;
   if (age === 'u21') list = list.filter(p => p.age <= 21);
   else if (age === 'u25') list = list.filter(p => p.age <= 25);
-  else if (age === 'o26') list = list.filter(p => p.age >= 26);
-  list = list.filter(p => ENG.dynRating(p) >= G.ui.marketFloor);
+  else if (age === 'a27_30') list = list.filter(p => p.age >= 27 && p.age <= 30);
+  else if (age === 'a30_35') list = list.filter(p => p.age >= 30 && p.age <= 35);
+  else if (age === 'o35') list = list.filter(p => p.age >= 35);
+  const floor = sec === 'all' ? Math.max(G.ui.marketFloor, 65) : G.ui.marketFloor;
+  list = list.filter(p => ENG.dynRating(p) >= floor);
   const sort = G.ui.marketSort || 'ovr';
-  list = list.sort((a, b) =>
-    sort === 'value' ? b.value - a.value :
-    sort === 'pot' ? b.pot - a.pot || b.ovr - a.ovr :
-    sort === 'age' ? a.age - b.age || b.ovr - a.ovr :
-    ENG.dynRating(b) - ENG.dynRating(a));
-  return list.slice(0, 80).map(p => {
+  const dir = G.ui.marketSortDir === 'asc' ? 1 : -1; // ▲ (desc) — сначала высокие значения
+  list = list.sort((a, b) => dir * (
+    sort === 'value' ? a.value - b.value :
+    sort === 'pot' ? (a.pot - b.pot) || (a.ovr - b.ovr) :
+    sort === 'age' ? a.age - b.age :
+    ENG.dynRating(a) - ENG.dynRating(b)));
+  return list.map(p => {
     const price = p.value;
     const delta = p.baseValue ? Math.round((p.value / p.baseValue - 1) * 100) : 0;
     const dt = delta >= 3 ? '<i class="tr up">+' + delta + '%</i>' : delta <= -3 ? '<i class="tr dn">' + delta + '%</i>' : '';
     return `<button class="row" data-act="open-player" data-id="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>${p.real ? ' <span class="fc-tag">FC 27</span>' : ''}
+      ${posTag(p)}<div class="grow"><b class="mk-name">${esc(pname(p))}</b>${p.era ? ' <span class="fc-tag era-tag">эпоха</span>' : p.real ? ' <span class="fc-tag">FC 27</span>' : ''}
       <div class="sub muted">${esc(p.nat)} · ${p.age} лет${p.realClub ? ' · ' + esc(p.realClub) : p.clubId === 'free' ? ' · без клуба' : ''}${p.mor < 45 ? ' · настрой ' + p.mor : ''} · ${ENG.USD(price)}${dt ? ' ' : ''}${dt}</div></div>
       ${rateChip(p)}</button>`;
   }).join('');
 }
 function scrMarket() {
-  const sec = G.ui.marketSection || 'stars';
+  const sec = G.ui.marketSection || 'era';
   const top = GD.MARKETS.filter(m => m.top).map(m => m.id);
   const rest = GD.MARKETS.filter(m => !m.top).map(m => m.id);
   const mk = m => GD.MARKETS.find(x => x.id === m);
@@ -701,20 +709,20 @@ function scrMarket() {
   <div class="chips">${MK_SECTIONS.map(([k, n]) => `<button class="chip ${sec === k ? 'on' : ''}" data-act="market-section" data-v="${k}">${n}</button>`).join('')}</div>
   ${sec === 'all' ? `<div class="chips">${top.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country}</button>`).join('')}</div>
   <div class="chips">${rest.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country} · ${mk(id).league}</button>`).join('')}</div>` : ''}
-  <label class="field"><span class="muted">Поиск: имя, фамилия, страна, клуб</span>
-    <input type="search" id="mk-search" data-sync="marketSearch" placeholder="например: Левандовски" value="${esc(G.ui.marketSearch || '')}"></label>
+  <label class="field"><span class="muted">Поиск: имя и фамилия, страна, клуб</span>
+    <input type="search" id="mk-search" data-sync="marketSearch" placeholder="имя и фамилия игрока" value="${esc(G.ui.marketSearch || '')}"></label>
   <div class="chips">${[['all', 'Все'], ['tech', 'Техничный'], ['strong', 'Сильный'], ['fast', 'Быстрый'], ['shot', 'Удар'], ['pass', 'Пас'], ['tackle', 'Отбор']].map(([k, n]) =>
     `<button class="chip ${G.ui.marketFeat === k ? 'on' : ''}" data-act="market-feat" data-v="${k}">${n}</button>`).join('')}</div>
   <div class="chips">${[['all', 'Амплуа: все'], ['gk', 'ВРТ'], ['def', 'Защита'], ['mid', 'Полузащита'], ['fwd', 'Атака']].map(([k, n]) =>
     `<button class="chip ${G.ui.marketPos === k ? 'on' : ''}" data-act="market-pos" data-v="${k}">${n}</button>`).join('')}</div>
-  <div class="chips">${[['all', 'Возраст: любой'], ['u21', 'до 21'], ['u25', 'до 25'], ['o26', '26+']].map(([k, n]) =>
+  <div class="chips">${[['all', 'Возраст: любой'], ['u21', 'до 21'], ['u25', 'до 25'], ['a27_30', '27–30'], ['a30_35', '30–35'], ['o35', '35+']].map(([k, n]) =>
     `<button class="chip ${(G.ui.marketAge || 'all') === k ? 'on' : ''}" data-act="market-age" data-v="${k}">${n}</button>`).join('')}</div>
-  <div class="chips">${[['ovr', 'По рейтингу'], ['pot', 'По потенциалу'], ['value', 'По цене'], ['age', 'По возрасту']].map(([k, n]) =>
-    `<button class="chip ${(G.ui.marketSort || 'ovr') === k ? 'on' : ''}" data-act="market-sort" data-v="${k}">${n}</button>`).join('')}</div>
+  <div class="chips sort-chips">${[['ovr', 'По рейтингу'], ['pot', 'По потенциалу'], ['value', 'По цене'], ['age', 'По возрасту']].map(([k, n]) =>
+    `<span class="sort-cell"><button class="chip ${(G.ui.marketSort || 'ovr') === k ? 'on' : ''}" data-act="market-sort" data-v="${k}">${n}</button>${(G.ui.marketSort || 'ovr') === k ? `<button class="tri-btn" data-act="market-sort-dir" title="${(G.ui.marketSortDir === 'asc') ? 'По возрастанию — сначала низкие значения' : 'По убыванию — сначала высокие значения'}">${G.ui.marketSortDir === 'asc' ? '▼' : '▲'}</button>` : ''}</span>`).join('')}</div>
   <label class="field"><span class="muted">Живой рейтинг не ниже: ${G.ui.marketFloor}</span>
     <input type="range" data-act="market-floor" data-sync="marketFloor" min="50" max="95" value="${G.ui.marketFloor}"></label>
   <div class="card rowlist" id="market-list" style="padding:6px 10px">${marketRows()}</div>
-  <div class="note">Звёзды и потенциал — реальные игроки с рейтингами образца FC 27 (по открытым данным рейтингов и Transfermarkt). Свободные агенты — без клуба. Цены и цифры рейтинга «дышат»: форма, травмы и статистика двигают их во время сезона и после него.</div>`;
+  <div class="note">Старая эпоха — легенды 2000-х/2010-х, которые всё ещё в строю (по открытым данным Transfermarkt и рейтингов FC 27). Свободные агенты — без клуба. В разделе «Лиги и страны» показаны все игроки выбранной страны или лиги с рейтингом 65+. Треугольник у сортировки: ▲ — сначала высокие значения (цена, возраст, рейтинг), ▼ — сначала низкие. Цены и цифры рейтинга «дышат»: форма, травмы и статистика двигают их во время сезона и после него.</div>`;
 }
 
 // ---------- inbox / money / calendar / cups / sacked ----------

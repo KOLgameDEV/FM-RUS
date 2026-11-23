@@ -221,3 +221,12 @@ body.has-back #app { padding-top: 56px; }
 .row.starter { box-shadow: inset 3px 0 0 var(--gold); }
 #mk-search { width: 100%; background: var(--input); border: 1px solid var(--card-line); border-radius: var(--r-sm); color: var(--text); font: 500 14px 'Manrope', sans-serif; padding: 9px 12px; margin: 2px 0 4px; }
 #mk-search:focus { outline: none; border-color: var(--gold); }
+#mk-search::placeholder { color: var(--muted); opacity: .85; font-size: 13px; font-weight: 500; }
+/* имя и фамилия игрока — мелким, но читаемым шрифтом */
+.mk-name { font: 600 13.5px/1.35 'Manrope', sans-serif; letter-spacing: .01em; color: var(--text); }
+.era-tag { background: #8a6d3b; color: #f6ecd8; }
+.sort-chips { align-items: center; }
+.sort-cell { display: inline-flex; align-items: center; gap: 4px; }
+.tri-btn { width: 30px; height: 30px; flex: 0 0 30px; border: 1px solid var(--card-line); border-radius: 8px; background: var(--card); color: var(--gold); font: 700 13px 'Manrope', sans-serif; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: border-color .12s, transform .08s; }
+.tri-btn:hover { border-color: var(--gold); }
+.tri-btn:active { transform: translateY(1px); }

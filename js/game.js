@@ -13,7 +13,7 @@ const G = {
   ui: {
     pickLeague: 'rpl', pickCountry: 'ru',
     squadFilter: 'all', marketCountry: 'eng', marketFeat: 'all', marketPos: 'all', marketFloor: 50,
-    marketSection: 'stars', marketSearch: '', marketSort: 'ovr', marketAge: 'all',
+    marketSection: 'era', marketSearch: '', marketSort: 'ovr', marketSortDir: 'desc', marketAge: 'all',
     tableLeague: null, selectedSlot: -1, viewingPlayer: null,
     inboxOpen: {}, msgIdx: 0,
   },
@@ -53,7 +53,12 @@ function loadFolder() {
 }
 function storeFolder() { localStorage.setItem(folderKey(), JSON.stringify(G.folder)); }
 function migrate(s) {
-  if (!s || s.v === 3) return s;
+  if (!s) return s;
+  // even v3 saves need backfills when the market dataset grows
+  if (s.v === 3) {
+    if (window.ENG && ENG.migrateSave) ENG.migrateSave(s);
+    return s;
+  }
   // tolerate older/partial saves by re-filling defaults
   const d = { v: 3, manager: 'Тренер', date: '2026-07-11', season: 2026, played: 0, confidence: 68,
     focus: null, sacked: false, offers: [], log: [], badSeasons: 0,
@@ -300,6 +305,7 @@ const ACT = {
   'market-pos'(el) { G.ui.marketPos = el.dataset.v; go('market'); },
   'market-age'(el) { G.ui.marketAge = el.dataset.v; go('market'); },
   'market-sort'(el) { G.ui.marketSort = el.dataset.v; go('market'); },
+  'market-sort-dir'(el) { G.ui.marketSortDir = G.ui.marketSortDir === 'asc' ? 'desc' : 'asc'; go('market'); },
   'market-floor'(el) { G.ui.marketFloor = +el.value; renderMarketList(); },
   // inbox
   'msg-open'(el) {
