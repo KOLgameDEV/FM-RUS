@@ -291,6 +291,7 @@ function start() {
   active = true;
   MatchView.active = true;
   live = ENG.createLive(S, fx);
+  G.ui.liveSubsUsed = 0;
   waiting45 = false; paused = false; MatchView.htDone = false;
   ball = { x: 0.5, y: 0.55, tx: 0.5, ty: 0.55 };
   scene = { kind: null, caption: '', until: 0 };
@@ -321,16 +322,22 @@ function secondHalf() {
 function doUserSub(outPid, inPid) {
   const S = G.S;
   if (live.subsUsed >= 5) { toast('Все 5 замен использованы.'); return; }
+  const bench = ENG.benchOf(S).filter(p => ENG.available(p));
+  if (bench.length && !bench.some(p => p.id === inPid)) { toast('Игрок не в заядном запасе. Добавьте его в шторке «Замены» на вкладке «Состав».'); return; }
   if (ENG.applyLiveSub(S, live, S.clubId, outPid, inPid)) {
     G.ui.liveSubsUsed = live.subsUsed;
     toast('Замена исполнена при паузе.');
   } else toast('Не удалось провести замену.');
 }
+function pauseForMenu() {
+  if (!live || live.over) return;
+  paused = true;
+}
 window.addEventListener('resize', () => { if (active) resize(); });
 return {
   get active() { return active; },
   set active(v) { active = v; },
-  start, stop, resume, secondHalf, doUserSub,
+  start, stop, resume, secondHalf, doUserSub, pauseForMenu,
   get htDone() { return this._ht; }, set htDone(v) { this._ht = v; },
 };
 })();

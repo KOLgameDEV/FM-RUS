@@ -10,6 +10,13 @@ function badge(c, big) {
   return `<span class="badge${big ? ' big' : ''}" style="--c1:${c.color};--c2:${c.color2}">${esc(c.short.slice(0, 3).toUpperCase())}</span>`;
 }
 function ovrCls(v) { return v >= 75 ? 'hi' : v >= 62 ? 'mid' : 'lo'; }
+function dynCls(v) { return v >= 80 ? 'hi' : v >= 68 ? 'mid' : v >= 56 ? 'ok' : 'lo'; }
+// живой рейтинг как в FC 27:数字 + стрелка тренда относительно базового
+function rateChip(p) {
+  const d = ENG.dynRating(p);
+  const tr = d > p.ovr ? '<i class="tr up">▲</i>' : d < p.ovr ? '<i class="tr dn">▼</i>' : '';
+  return `<span class="ovr dyn ${dynCls(d)}">${d}${tr}</span>`;
+}
 function posTag(p) { return `<span class="pos">${GD.POS_ABBR[p.pos]}</span>`; }
 function pname(p) { return p.first + ' ' + p.last; }
 function leagueClubs(lg) { return G.S ? G.S.clubs.filter(c => c.league === lg) : GD.CLUBS.filter(c => c.league === lg); }
@@ -374,61 +381,106 @@ function scrDesk() {
   </div>`;
 }
 function squadRows(filter) {
-  let sq = ENG.playersOf(G.S, G.S.clubId).slice().sort((a, b) => b.ovr - a.ovr);
+  let sq = ENG.playersOf(G.S, G.S.clubId).slice().sort((a, b) => ENG.dynRating(b) - ENG.dynRating(a));
   const groups = { all: null, gk: ['GK'], def: ['DR', 'DL', 'DC'], mid: ['DM', 'MC', 'AM', 'MR', 'ML'], fwd: ['ST'] };
   const g = groups[filter];
   if (g) sq = sq.filter(p => g.includes(p.pos));
+  const starters = new Set(ENG.lineupPlayers(G.S, G.S.clubId, G.S.tactics).map(s => s.pid));
+  const bench = new Set((G.S.bench || []).map(id => id));
   return sq.map(p => `
-    <button class="row" data-act="open-player" data-id="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b> <span class="muted small">${p.age} лет</span>
-      <div class="sub muted">${p.mor < 45 ? 'настрой ' + p.mor + ' · ' : ''}${p.injured ? 'травма ' + p.injured + ' дн. · ' : ''}${p.ban ? 'дискв. · ' : ''}${p.cond < 65 ? 'тонус ' + p.cond + ' · ' : ''}${p.apps ? p.goals + ' гол' : ''}</div></div>
-      <span class="ovr ${ovrCls(p.ovr)}">${p.ovr}</span>
+    <button class="row${starters.has(p.id) ? ' starter' : ''}" data-act="open-player" data-id="${p.id}">
+      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b> <span class="muted small">${p.age} лет · ${p.apps ? p.goals + 'г ' + p.assists + 'п' : 'тонус ' + p.cond}</span>
+      <div class="sub muted">${starters.has(p.id) ? 'основа · ' : bench.has(p.id) ? 'запас · ' : 'резерв · '}${p.mor < 45 ? 'настрой ' + p.mor + ' · ' : ''}${p.injured ? 'травма ' + p.injured + ' дн. · ' : ''}${p.ban ? 'дискв. · ' : ''}${p.cond < 65 ? 'тонус ' + p.cond + ' · ' : ''}${p.apps ? 'оц. ' + (p.ratingSum / p.apps).toFixed(2) : ''}</div></div>
+      ${rateChip(p)}
     </button>`).join('');
 }
 function scrSquad() {
   const f = G.ui.squadFilter;
   return `
+  <button class="bench-arrow" data-act="bench-open" title="Замены">⇤</button>
   <div class="kicker">${esc(ENG.myClub(G.S).name)}</div><h1>Состав</h1>
   <div class="chips">${[['all', 'Все'], ['gk', 'Вратари'], ['def', 'Защита'], ['mid', 'Полузащита'], ['fwd', 'Атака']].map(([k, n]) =>
     `<button class="chip ${f === k ? 'on' : ''}" data-act="squad-filter" data-v="${k}">${n}</button>`).join('')}</div>
-  <div class="card rowlist" style="padding:6px 10px">${squadRows(f)}</div>`;
+  <div class="card rowlist" style="padding:6px 10px">${squadRows(f)}</div>
+  <div class="muted small" style="margin-top:8px">Стрелка слева — шторка замен: сначала поставьте игроков на замену, потом выпускайте их в матче при паузе или тайм-ауте.</div>`;
+}
+function benchSheetHtml() {
+  const S = G.S, tac = S.tactics;
+  const starters = ENG.lineupPlayers(S, S.clubId, tac);
+  const stIds = new Set(starters.map(s => s.pid));
+  const bench = ENG.benchOf(S);
+  const all = ENG.playersOf(S, S.clubId).sort((a, b) => b.ovr - a.ovr);
+  const reserve = all.filter(p => !stIds.has(p.id) && !bench.some(b => b.id === p.id));
+  const row = (p, kind, btn) => `
+    <div class="row" style="cursor:default">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>
+      <div class="sub muted">${GD.POS_FULL[p.pos]} · тонус ${p.cond}${p.injured ? ' · травма ' + p.injured + ' дн.' : ''}${p.ban ? ' · дискв.' : ''}</div></div>
+      ${rateChip(p)}${btn || ''}</div>`;
+  const b = (pid, on) => `<button class="btn small ${on ? 'ghost' : ''}" data-act="${on ? 'bench-remove' : 'bench-add'}" data-pid="${pid}">${on ? 'убрать' : 'на замену'}</button>`;
+  return `
+  <h2>Замены<button class="x" data-act="close-sheet">×</button></h2>
+  <h3 class="sheet-h3">Первыйнадцать (${starters.length})</h3>
+  <div class="rowlist">${starters.map(s => row(S_player(s.pid), 'st')).join('')}</div>
+  <h3 class="sheet-h3">Запас (${bench.length}/${ENG.BENCH_MAX}) <span class="muted small">выходят при паузе матча или тайм-ауте</span></h3>
+  ${bench.length ? `<div class="rowlist">${bench.map(p => row(p, 'bn', b(p.id, true))).join('')}</div>` : '<div class="note">Пусто. Отметьте игроков ниже кнопкой «на замену».</div>'}
+  <h3 class="sheet-h3">Резерв</h3>
+  <div class="rowlist">${reserve.map(p => row(p, 'rs', b(p.id, false))).join('')}</div>`;
 }
 function attrLine(label, v) {
-  return `<div class="attrline"><span class="muted">${label}</span><b>${v}</b><div class="bar"><i style="width:${v * 5}%"></i></div></div>`;
+  const n = Math.round(v);
+  const w = n <= 20 ? n * 5 : Math.min(100, n);
+  return `<div class="attrline"><span class="muted">${label}</span><b>${n}</b><div class="bar"><i style="width:${w}%"></i></div></div>`;
 }
 function playerCard(p) {
   const own = p.clubId === G.S.clubId;
   const club = String(p.clubId).startsWith('pool:') ? null : ENG.clubById(G.S, p.clubId);
-  const clubLabel = own ? 'свой клуб' : club ? club.name : (String(p.clubId).startsWith('pool:') ? (GD.MARKETS.find(m => 'pool:' + m.id === p.clubId) || {}).country : 'свободный агент');
+  const clubLabel = own ? 'свой клуб' : p.realClub ? p.realClub : club ? club.name : p.clubId === 'free' ? 'свободный агент' : String(p.clubId).startsWith('pool:') ? ((GD.MARKETS.find(m => 'pool:' + m.id === p.clubId) || {}).country || 'рынок') : 'свободный агент';
   const attrs = p.pos === 'GK'
     ? [['Вратарская', p.gk], ['Игра руками', p.def], ['Характер', p.men], ['Выбор позиции', p.pas]]
     : [['Скорость', p.pac], ['Удар', p.sho], ['Пас', p.pas], ['Техника', p.tec], ['Отбор', p.def], ['Мощь', p.strn], ['Выносливость', p.sta], ['Характер', p.men]];
   const avgRate = p.apps ? (p.ratingSum / p.apps).toFixed(2) : '—';
+  const dyn = ENG.dynRating(p);
+  const mods = ENG.dynMods(p);
+  const ra = ENG.recentAvg(p);
   const cond = scoutingBlurb(p);
-  const isForeign = !own && !String(p.clubId).startsWith('pool:') && p.clubId !== 'free';
+  const trend = dyn > p.ovr ? '▲ растёт' : dyn < p.ovr ? '▼ просел' : '= стабилен';
+  const isForeign = !own && !(!p.realClub && String(p.clubId).startsWith('pool:')) && p.clubId !== 'free';
   const canBuy = !own;
   const window = ENG.inWindow(G.S.date);
   return `
-  <div class="kicker">${GD.POS_FULL[p.pos]} · ${esc(p.nat)}</div>
+  <div class="kicker">${GD.POS_FULL[p.pos]} · ${esc(p.nat)}${p.real ? ' · FC 27' : ''}</div>
   <h1>${esc(pname(p))}</h1>
-  <div class="muted small">${p.age} лет · ${p.foot} нога · №${p.number || '—'} · ${esc(clubLabel)}${club ? ' · ' + (GD.LEAGUES[club.league] || { short: 'Евро' }).short : p.clubId === 'free' ? ' | свободный агент' : ' | трансферный лист'}</div>
+  <div class="muted small">${p.age} лет · ${p.foot} нога · №${p.number || '—'} · ${esc(p.realClub || clubLabel)}${club ? ' · ' + (GD.LEAGUES[club.league] || { short: 'Евро' }).short : p.clubId === 'free' ? ' | свободный агент' : ' | трансферный лист'}</div>
   <div style="display:flex;gap:16px;align-items:flex-end;margin:12px 0">
-    <div><div class="kicker">общий</div><div class="score" style="font-size:44px;text-align:left">${p.ovr}</div></div>
-    <div class="grow">${attrLine('Настрой', p.mor)}</div>
+    <div><div class="kicker">живой рейтинг</div><div class="score dynbig ${dyn >= 75 ? 'up' : dyn < p.ovr ? 'down' : ''}" style="font-size:44px;text-align:left">${dyn}<span class="trend">${trend}</span></div></div>
+    <div class="grow">
+      ${attrLine('Тонус', p.cond)}
+      ${attrLine('Свежесть', p.sharp)}
+      ${attrLine('Настрой', p.mor)}
+    </div>
   </div>
-  <div class="card">${attrs.map(a => attrLine(a[0], a[1])).join('')}</div>
+  ${mods.length ? `<div class="chips">${mods.map(m => `<span class="chip mod ${m[1] > 0 ? 'pos' : 'neg'}">${esc(m[0])} ${m[1] > 0 ? '+' : ''}${m[1]}</span>`).join('')}</div>
+  <div class="muted small" style="margin:6px 0 10px">База ${p.ovr} · потолок ${p.pot}${p.real ? '' : ' · аналог в FC 27: ~' + ENG.fc27Equiv(p)}. Рейтинг дышит: травмы и усталость снижают, тонус, форма и удачная игра — поднимают, но не выше потолка.</div>` : `<div class="muted small" style="margin:6px 0 10px">База ${p.ovr} · потолок ${p.pot}${p.real ? '' : ' · аналог в FC 27: ~' + ENG.fc27Equiv(p)} — полное здоровье и тонус.</div>`}
+  <div class="card">${attrs.map(a => attrLine(a[0], a[1] * 5)).join('')}</div>
   <div class="note">${esc(cond)}</div>
+  <h3 class="stats-h3">Статистика сезона</h3>
   <div class="strip">
     <div class="cell"><div class="k">Игры</div><div class="v">${p.apps}</div></div>
     <div class="cell"><div class="k">Голы</div><div class="v">${p.goals}</div></div>
-    <div class="cell"><div class="k">Оценка</div><div class="v">${avgRate}</div></div>
+    <div class="cell"><div class="k">Ассисты</div><div class="v">${p.assists || 0}</div></div>
+    <div class="cell"><div class="k">Ж.К.</div><div class="v">${p.yellow}</div></div>
   </div>
   <div class="strip">
+    <div class="cell"><div class="k">Средняя оценка</div><div class="v">${avgRate}</div></div>
+    <div class="cell"><div class="k">Оц. последних</div><div class="v">${ra == null ? '—' : ra.toFixed(2)}</div></div>
+    <div class="cell"><div class="k">Гол+пас / 90</div><div class="v">${p.apps ? ((p.goals + (p.assists || 0)) * 90 / Math.max(1, p.apps)).toFixed(1) : '—'}</div></div>
+  </div>
+  ${(p.recent && p.recent.length) ? `<div class="chips">${p.recent.slice(-5).map(r => `<span class="chip mr ${r >= 7.3 ? 'pos' : r < 6.2 ? 'neg' : ''}">${r.toFixed(2)}</span>`).join('')}</div>` : ''}
+  <div class="strip">
     <div class="cell"><div class="k">Рейтинг+потолок</div><div class="v">${p.ovr}+${Math.max(0, p.pot - p.ovr)}</div></div>
-    <div class="cell"><div class="k">Цена</div><div class="v small" style="font-size:13px">${ENG.USD(p.value)}</div></div>
+    <div class="cell"><div class="k">Цена (живая)</div><div class="v small" style="font-size:13px">${ENG.USD(p.value)}</div></div>
     <div class="cell"><div class="k">Контракт</div><div class="v small" style="font-size:13px">${p.contract} г.</div></div>
   </div>
-  <div class="muted small" style="margin-bottom:10px">${ENG.IW(p.wage)}${p.clause ? ' · Условие: отступные ' + ENG.USD(p.clause) : ''}</div>
+  <div class="muted small" style="margin-bottom:10px">${ENG.IW(p.wage)}${p.clause ? ' · Условие: отступные ' + ENG.USD(p.clause) : ''} · цена пересчитывается по форме, тонусу и статистике</div>
   ${own ? renewPanel(p) : (canBuy ? buyPanel(p, isForeign, window) : '')}
   <div class="btnrow">
     ${own ? `<button class="btn ghost" data-act="to-first-eleven">В основу</button>
@@ -452,7 +504,7 @@ function renewPanel(p) {
   </div>`;
 }
 function buyPanel(p, isForeign, window) {
-  const free = p.clubId === 'free' || String(p.clubId).startsWith('pool:');
+  const free = p.clubId === 'free' || (String(p.clubId).startsWith('pool:') && !p.realClub);
   const fee = G.ui.bidFee || p.value;
   if (free || !isForeign) {
     return `<div class="card"><h3>Трансфер</h3>
@@ -516,13 +568,18 @@ function scrTactics() {
     const p = slot && S_player(slot.pid);
     const club = ENG.myClub(G.S);
     if (!p) return '';
+    const d = ENG.dynRating(p);
+    const tr = d > p.ovr ? '▲' : d < p.ovr ? '▼' : '';
     return `<button class="dot ${G.ui.selectedSlot === i ? 'sel' : ''}" style="left:${xy.x}%;top:${xy.y}%" data-act="slot-select" data-i="${i}">
-      <span class="ball-dot" style="--c1:${club.color}">${p.number}</span><span class="lbl">${GD.POS_ABBR[xy.pos]}</span></button>`;
+      <span class="ball-dot" style="--c1:${club.color}">${p.number}</span><span class="lbl">${GD.POS_ABBR[xy.pos]} <b class="dot-rate ${d >= 75 ? 'up' : d < p.ovr ? 'dn' : ''}">${d}${tr}</b></span></button>`;
   }).join('');
   return `
   <div class="kicker">Матч-план</div><h1>Тактика</h1>
   <div class="chips">${GD.FORM_LIST.map(f => `<button class="chip ${tac.formation === f ? 'on' : ''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
   <div class="pitch" id="tac-pitch">${dots}</div>
+  <div class="card rowlist tac-eleven" style="padding:4px 10px;margin:8px 0">
+    ${plan.map(s => { const p = S_player(s.pid); return p ? `<button class="row" data-act="open-player" data-id="${p.id}">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b> <span class="muted small">№${p.number}</span></div>${rateChip(p)}</button>` : ''; }).join('')}
+  </div>
   <div class="muted small" id="tac-summary" style="margin:8px 0">${esc(tacSummary(tac))}</div>
   <div class="chips">${GD.TACTICS.map(t => `<button class="chip ${tac.style === t.id ? 'on' : ''}" data-act="style" data-v="${t.id}">${t.name}</button>`).join('')}</div>
   ${SLIDERS.map(s => `<label class="field"><span class="muted">${s[1]}: ${s[2][Math.max(0, Math.min(4, tac[s[0]] === undefined ? 2 : s[0] === 'mentality' ? tac.mentality + 2 : tac[s[0]] ?? 2))] || ''}</span>
@@ -544,8 +601,8 @@ function assignmentHtml() {
   return `<h2>Кто на позиции ${GD.POS_ABBR[pos]}<button class="x" data-act="close-sheet">×</button></h2>
   <div class="rowlist">${list.slice(0, 14).map(({ p, fit }) => `
     <button class="row" data-act="${used.has(p.id) ? 'close-sheet' : 'assign'}" data-pid="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${p.age} лет · ${p.pos === pos ? 'родная позиция' : 'адаптация ' + Math.round(fit * 100)}%</div></div>
-      <span class="ovr ${ovrCls(p.ovr)}">${p.ovr}</span></button>`).join('')}</div>`;
+      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${p.age} лет · ${p.pos === pos ? 'родная позиция' : 'адаптация ' + Math.round(fit * 100)}% · тонус ${p.cond}${p.injured ? ' · травма' : ''}</div></div>
+      ${rateChip(p)}</button>`).join('')}</div>`;
 }
 function UI_avgCond() { return avgCond(); }
 
@@ -574,56 +631,90 @@ function scrLeague() {
   const lg = G.ui.tableLeague || myLg;
   const chipLgs = ['rpl', 'fnl', 'fnl2', 'fnl3', 'media', 'amateur'].concat(GD.FOREIGN_LEAGUES);
   const done = ENG.leagueDone(G.S, myLg);
+  const chips = `<div class="chips">
+    ${chipLgs.map(l => `<button class="chip ${lg === l ? 'on' : ''}" data-act="table-league" data-v="${l}">${GD.LEAGUES[l].short}</button>`).join('')}
+    <button class="chip ${lg === 'cup' ? 'on' : ''}" data-act="table-league" data-v="cup">Кубок России</button>
+  </div>`;
+  if (lg === 'cup') {
+    return `
+  <div class="kicker">Чемпионаты и кубок</div><h1>Лига</h1>
+  ${chips}
+  ${cupHtml()}`;
+  }
   return `
-  <div class="kicker">Чемпионаты</div><h1>Таблица</h1>
-  <div class="chips">${chipLgs.map(l => `<button class="chip ${lg === l ? 'on' : ''}" data-act="table-league" data-v="${l}">${GD.LEAGUES[l].short}</button>`).join('')}</div>
+  <div class="kicker">Чемпионаты и кубок</div><h1>Лига</h1>
+  ${chips}
   <div class="card">${tableHtml(lg)}</div>
   ${lg === myLg && done ? `<button class="btn" data-act="season-close" style="width:100%">Закрыть сезон и перейти дальше</button>` : ''}`;
 }
 
 // ---------- market ----------
+const MK_SECTIONS = [['stars', 'Звёзды FC 27'], ['promise', 'Высокий потенциал'], ['free', 'Свободные агенты'], ['all', 'Лиги и страны']];
+function mkMatches(p, mk) {
+  if (mk.inGame) { const c = ENG.clubById(G.S, p.clubId); return c && c.league === mk.inGame; }
+  return p.clubId === 'pool:' + mk.id;
+}
 function marketRows() {
+  const sec = G.ui.marketSection || 'stars';
   const mk = GD.MARKETS.find(m => m.id === G.ui.marketCountry) || GD.MARKETS[0];
-  let list;
-  if (mk.inGame) {
-    list = ENG.playersOf(G.S, undefined), list = G.S.players.filter(p => {
-      const c = ENG.clubById(G.S, p.clubId);
-      return c && c.league === mk.inGame;
-    });
-  } else {
-    list = ENG.marketPlayers(mk);
-  }
+  let list = G.S.players.filter(p => p.clubId !== G.S.clubId && !String(p.clubId).startsWith('eu-'));
+  if (sec === 'stars') list = list.filter(p => p.real && p.ovr >= 82);
+  else if (sec === 'promise') list = list.filter(p => (p.real ? p.pot >= 84 && p.age <= 21 : p.pot - p.ovr >= 5 && p.age <= 21));
+  else if (sec === 'free') list = list.filter(p => p.clubId === 'free' || p.freeAgent);
+  else list = list.filter(p => mkMatches(p, mk) || p.clubId === 'free');
+  const q = (G.ui.marketSearch || '').trim().toLowerCase();
+  if (q) list = list.filter(p => (pname(p) + ' ' + p.nat + ' ' + (p.realClub || '')).toLowerCase().includes(q));
   const featAttr = { tech: 'tec', strong: 'strn', fast: 'pac', shot: 'sho', pass: 'pas', tackle: 'def' }[G.ui.marketFeat];
   if (featAttr) list = list.filter(p => p[featAttr] >= 15);
   if (G.ui.marketPos !== 'all') {
     const g = { gk: ['GK'], def: ['DR', 'DL', 'DC'], mid: ['DM', 'MC', 'AM', 'MR', 'ML'], fwd: ['ST'] }[G.ui.marketPos];
     if (g) list = list.filter(p => g.includes(p.pos));
   }
-  list = list.filter(p => p.ovr >= G.ui.marketFloor && p.clubId !== G.S.clubId);
-  return list.sort((a, b) => b.ovr - a.ovr).slice(0, 60).map(p => {
-    const price = p.clubId === G.S.clubId ? null : p.value;
+  const age = G.ui.marketAge;
+  if (age === 'u21') list = list.filter(p => p.age <= 21);
+  else if (age === 'u25') list = list.filter(p => p.age <= 25);
+  else if (age === 'o26') list = list.filter(p => p.age >= 26);
+  list = list.filter(p => ENG.dynRating(p) >= G.ui.marketFloor);
+  const sort = G.ui.marketSort || 'ovr';
+  list = list.sort((a, b) =>
+    sort === 'value' ? b.value - a.value :
+    sort === 'pot' ? b.pot - a.pot || b.ovr - a.ovr :
+    sort === 'age' ? a.age - b.age || b.ovr - a.ovr :
+    ENG.dynRating(b) - ENG.dynRating(a));
+  return list.slice(0, 80).map(p => {
+    const price = p.value;
+    const delta = p.baseValue ? Math.round((p.value / p.baseValue - 1) * 100) : 0;
+    const dt = delta >= 3 ? '<i class="tr up">+' + delta + '%</i>' : delta <= -3 ? '<i class="tr dn">' + delta + '%</i>' : '';
     return `<button class="row" data-act="open-player" data-id="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>
-      <div class="sub muted">${esc(p.nat)} · ${p.age} лет${p.mor < 45 ? ' · настрой ' + p.mor : ''} · ${ENG.USD(price)}</div></div>
-      <span class="ovr ${ovrCls(p.ovr)}">${p.ovr}</span></button>`;
+      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>${p.real ? ' <span class="fc-tag">FC 27</span>' : ''}
+      <div class="sub muted">${esc(p.nat)} · ${p.age} лет${p.realClub ? ' · ' + esc(p.realClub) : p.clubId === 'free' ? ' · без клуба' : ''}${p.mor < 45 ? ' · настрой ' + p.mor : ''} · ${ENG.USD(price)}${dt ? ' ' : ''}${dt}</div></div>
+      ${rateChip(p)}</button>`;
   }).join('');
 }
 function scrMarket() {
+  const sec = G.ui.marketSection || 'stars';
   const top = GD.MARKETS.filter(m => m.top).map(m => m.id);
   const rest = GD.MARKETS.filter(m => !m.top).map(m => m.id);
   const mk = m => GD.MARKETS.find(x => x.id === m);
   return `
-  <div class="kicker">Все рынки</div><h1>Рынок</h1>
-  <div class="chips">${top.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country}</button>`).join('')}</div>
-  <div class="chips">${rest.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country} · ${mk(id).league}</button>`).join('')}</div>
+  <div class="kicker">Все рынки · цены как в жизни, меняются по ходу сезона</div><h1>Рынок</h1>
+  <div class="chips">${MK_SECTIONS.map(([k, n]) => `<button class="chip ${sec === k ? 'on' : ''}" data-act="market-section" data-v="${k}">${n}</button>`).join('')}</div>
+  ${sec === 'all' ? `<div class="chips">${top.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country}</button>`).join('')}</div>
+  <div class="chips">${rest.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country} · ${mk(id).league}</button>`).join('')}</div>` : ''}
+  <label class="field"><span class="muted">Поиск: имя, фамилия, страна, клуб</span>
+    <input type="search" id="mk-search" data-sync="marketSearch" placeholder="например: Левандовски" value="${esc(G.ui.marketSearch || '')}"></label>
   <div class="chips">${[['all', 'Все'], ['tech', 'Техничный'], ['strong', 'Сильный'], ['fast', 'Быстрый'], ['shot', 'Удар'], ['pass', 'Пас'], ['tackle', 'Отбор']].map(([k, n]) =>
     `<button class="chip ${G.ui.marketFeat === k ? 'on' : ''}" data-act="market-feat" data-v="${k}">${n}</button>`).join('')}</div>
   <div class="chips">${[['all', 'Амплуа: все'], ['gk', 'ВРТ'], ['def', 'Защита'], ['mid', 'Полузащита'], ['fwd', 'Атака']].map(([k, n]) =>
     `<button class="chip ${G.ui.marketPos === k ? 'on' : ''}" data-act="market-pos" data-v="${k}">${n}</button>`).join('')}</div>
-  <label class="field"><span class="muted">Рейтинг не ниже: ${G.ui.marketFloor}</span>
-    <input type="range" data-act="market-floor" data-sync="marketFloor" min="50" max="90" value="${G.ui.marketFloor}"></label>
+  <div class="chips">${[['all', 'Возраст: любой'], ['u21', 'до 21'], ['u25', 'до 25'], ['o26', '26+']].map(([k, n]) =>
+    `<button class="chip ${(G.ui.marketAge || 'all') === k ? 'on' : ''}" data-act="market-age" data-v="${k}">${n}</button>`).join('')}</div>
+  <div class="chips">${[['ovr', 'По рейтингу'], ['pot', 'По потенциалу'], ['value', 'По цене'], ['age', 'По возрасту']].map(([k, n]) =>
+    `<button class="chip ${(G.ui.marketSort || 'ovr') === k ? 'on' : ''}" data-act="market-sort" data-v="${k}">${n}</button>`).join('')}</div>
+  <label class="field"><span class="muted">Живой рейтинг не ниже: ${G.ui.marketFloor}</span>
+    <input type="range" data-act="market-floor" data-sync="marketFloor" min="50" max="95" value="${G.ui.marketFloor}"></label>
   <div class="card rowlist" id="market-list" style="padding:6px 10px">${marketRows()}</div>
-  <div class="note">Цены в долларах. Страна — это лига. Топ-15 по уровню FC 27, остальные — ближайший уровень Football Manager.</div>`;
+  <div class="note">Звёзды и потенциал — реальные игроки с рейтингами образца FC 27 (по открытым данным рейтингов и Transfermarkt). Свободные агенты — без клуба. Цены и цифры рейтинга «дышат»: форма, травмы и статистика двигают их во время сезона и после него.</div>`;
 }
 
 // ---------- inbox / money / calendar / cups / sacked ----------
@@ -681,7 +772,7 @@ function scrCalendar() {
       ${f.played ? `<b>${f.hg}:${f.ag}</b>` : '<span class="muted small">→</span>'}</button>`;
   }).join('')}</div>`;
 }
-function scrCups() {
+function cupHtml() {
   const groups = (G.S.cup.groups || []).map((g, gi) => {
     const lab = 'Группа ' + 'ABCD'[gi];
     const rows = g.map(id => {
@@ -703,7 +794,6 @@ function scrCups() {
       ${f.played ? `<b>${f.hg}:${f.ag}</b>` : ''}</div>`;
   }).join('');
   return `
-  <div class="kicker">Сетка и группы</div><h1>Кубки</h1>
   <div class="card"><h3>FONBET Кубок России</h3>
     <div class="muted small">РПЛ: четыре группы по четыре, два круга. Регионы: плей-офф с июля. 1/8 — март, финал — 2 июня.</div>
     ${fxList(myCupFx)}</div>
@@ -713,6 +803,9 @@ function scrCups() {
     <div class="chips">${['Квалификация', 'Общий этап', '1/8', '1/4', '1/2', 'Финал'].map(s =>
       `<span class="chip ${(euroStageName(e.stage) || '').startsWith(s) ? 'on' : ''}">${s}</span>`).join('')}</div>
     ${fxList(myEuroFx)}</div>`;
+}
+function scrCups() {
+  return `<div class="kicker">Сетка и группы</div><h1>Кубки</h1>${cupHtml()}`;
 }
 function euroTitle(c) { return c === 'ucl' ? 'Лига чемпионов' : c === 'uel' ? 'Лига Европы' : c === 'uecl' ? 'Лига конференций' : 'Квалификация ЛЧ'; }
 function euroStageName(st) {
@@ -752,10 +845,11 @@ function scrMatchLive() {
   <canvas id="mpitch" class="pitch-canvas"></canvas>
   <div class="fm-line" id="lv-ticker">Разминка…</div>
   <div class="btnrow" style="justify-content:center">
+    <button class="btn ghost small" data-act="match-timeout">Тайм-аут · замены</button>
     <button class="btn ghost small" data-act="match-menu-open">Меню матча</button>
     <button class="btn ghost small" data-act="landscape">Поле шире</button>
   </div>
-  <div class="note">Большую часть матча мяч в ногах. Поверните телефон — поле станет шире. Замены — в меню матча.</div>`;
+  <div class="note">Большую часть матча мяч в ногах. Поверните телефон — поле станет шире. Тайм-аут останавливает часы: в паузе доступны замены из запаса (сначала отметьте их на вкладке «Состав»).</div>`;
 }
 function scrMatchEnd() {
   const { fx, r, live } = G.ui.lastResult || {};
@@ -789,8 +883,16 @@ function trophyOverlay() {
 function MENU_HTML() {
   const tac = G.S.tactics;
   const starters = ENG.lineupPlayers(G.S, G.S.clubId, tac);
-  const bench = ENG.playersOf(G.S, G.S.clubId).filter(p => !starters.some(s => s.pid === p.id) && !p.injured && !p.ban);
+  const bench = ENG.benchOf(G.S).filter(p => ENG.available(p));
   const selOut = G.ui.menuOut;
+  const subRows = () => selOut
+    ? (bench.length
+      ? bench.map(p => `<button class="row" data-act="live-sub" data-out="${selOut}" data-inn="${p.id}">
+          ${posTag(p)}<div class="grow">${esc(pname(p))} <span class="muted small">тонус ${p.cond}</span></div>${rateChip(p)}</button>`).join('')
+      : '<div class="note">Запас пуст. Откройте «Состав» → стрелка слева → «на замену». Без запаса замены в матче недоступны.</div>')
+    : starters.map(s => S_player(s.pid)).filter(Boolean).map(p => `
+        <button class="row" data-act="menu-pick-out" data-pid="${p.id}">
+          ${posTag(p)}<div class="grow">${esc(pname(p))} <span class="muted small">тонус ${p.cond}</span></div>${rateChip(p)}</button>`).join('');
   return `
   <h2>${MENU_TITLE()}<button class="x" data-act="match-resume">×</button></h2>
   <div class="chips">${GD.FORM_LIST.map(f => `<button class="chip ${tac.formation === f ? 'on' : ''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
@@ -798,11 +900,8 @@ function MENU_HTML() {
     <input type="range" data-act="slider" data-k="${s[0]}" min="${s[0] === 'mentality' ? -2 : 0}" max="${s[0] === 'mentality' ? 2 : 4}" value="${s[0] === 'mentality' ? tac.mentality : tac[s[0]] ?? 2}"></label>`).join('')}
   <div class="chips">${GD.TACTICS.map(t => `<button class="chip ${tac.style === t.id ? 'on' : ''}" data-act="style" data-v="${t.id}">${t.name}</button>`).join('')}</div>
   <h3 style="margin-top:12px">Замены (${G.ui.liveSubsUsed || 0}/5)</h3>
-  ${selOut ? `<div class="note">Снять: <b>${esc(pname(S_player(selOut)))}</b> — выберите, кто выйдет.</div>` : '<div class="muted small">Сначала снимите игрока.</div>'}
-  ${(selOut ? bench : starters.map(s => S_player(s.pid)).filter(Boolean)).map(p => `
-    <button class="row" data-act="${selOut ? 'live-sub' : ''}" ${selOut ? `data-out="${selOut}" data-inn="${p.id}"` : ''} ${selOut ? '' : `data-act="menu-pick-out" data-pid="${p.id}"`}>
-      ${posTag(p)}<div class="grow">${esc(pname(p))} <span class="muted small">тонус ${p.cond}</span></div>
-      <span class="ovr ${ovrCls(p.ovr)}">${p.ovr}</span></button>`).join('')}
+  ${selOut ? `<div class="note">Снять: <b>${esc(pname(S_player(selOut)))}</b> — выберите, кто выйдет из запаса.</div>` : '<div class="muted small">Сначала снимите игрока, затем выберите замену из запаса.</div>'}
+  <div class="rowlist">${subRows()}</div>
   <div class="btnrow">
     ${window.MatchView && MatchView.htDone ? '<button class="btn" data-act="match-resume">Продолжить матч</button>' : '<button class="btn" data-act="match-second-half">Второй тайм</button>'}
     <button class="btn ghost" data-act="match-resume">Закрыть</button>
@@ -818,16 +917,14 @@ const SCREENS = {
   calendar: scrCalendar, cups: scrCups, sacked: scrSacked,
   'match-pre': scrMatchPre, 'match-live': scrMatchLive, 'match-end': scrMatchEnd,
 };
-const NAV = [['desk', 'Кабинет'], ['squad', 'Состав'], ['tactics', 'Тактика'], ['league', 'Лига'], ['other', 'Прочее']];
+const NAV = [['desk', 'Кабинет'], ['squad', 'Состав'], ['tactics', 'Тактика'], ['league', 'Лига'], ['market', 'Рынок'], ['other', 'Прочее']];
 function sheetOther() {
   return `
   <h2>Прочее<button class="x" data-act="close-sheet">×</button></h2>
   <div class="rowlist">
-    <button class="row" data-act="nav" data-v="market"><div class="grow">Рынок</div><span class="muted">→</span></button>
     <button class="row" data-act="nav" data-v="inbox"><div class="grow">Почта</div><span class="muted">→</span></button>
     <button class="row" data-act="nav" data-v="money"><div class="grow">Финансы</div><span class="muted">→</span></button>
     <button class="row" data-act="nav" data-v="calendar"><div class="grow">Календарь</div><span class="muted">→</span></button>
-    <button class="row" data-act="nav" data-v="cups"><div class="grow">Кубки</div><span class="muted">→</span></button>
     <button class="row" data-act="honors"><div class="grow">Заслуги</div><span class="muted">→</span></button>
     <button class="row" data-act="manual-save"><div class="grow">Сохранить вручную</div></button>
   </div>
@@ -853,7 +950,7 @@ function render() {
   const inCareer = G.S && !preScreens.includes(G.screen);
   const nav = inCareer ? `<nav class="tabs">${NAV.map(([v, n]) =>
     `<button class="${G.screen === v ? 'on' : ''}" data-act="nav" data-v="${v}">${n}</button>`).join('')}</nav>` : '';
-  const sheet = G.sheet ? `<div class="sheet-wrap" data-act="close-sheet"><div class="sheet" onclick="event.stopPropagation()">${G.sheet.html}</div></div>`
+  const sheet = G.sheet ? `<div class="sheet-wrap" data-act="close-sheet"><div class="sheet">${G.sheet.html}</div></div>`
     : (G.screen === 'other' && G.S ? `<div class="sheet-wrap"><div class="sheet">${sheetOther()}</div></div>` : '');
   app.innerHTML = html + trophyOverlay();
   document.body.dataset.screen = G.screen;
@@ -864,6 +961,12 @@ function render() {
   else if (G.screen === 'other') document.body.insertAdjacentHTML('beforeend', sheetOtherSheet());
   if (G.screen === 'match-live' && window.MatchView) window.MatchView.start();
   if (G.screen === 'match-end') { G.ui.lastResult.played = true; }
+  document.querySelectorAll('.back-top').forEach(n => n.remove());
+  const showBack = inCareer && ['squad', 'tactics', 'league', 'market', 'other', 'player', 'calendar', 'inbox', 'money'].includes(G.screen);
+  document.body.classList.toggle('has-back', showBack);
+  if (showBack) {
+    document.body.insertAdjacentHTML('beforeend', '<button class="back-top" data-act="go-back" title="Назад">←</button>');
+  }
 }
 function sheetOtherSheet() { return `<div class="sheet-wrap">${'<div class="sheet">' + sheetOther() + '</div>'}</div>`; }
 function updateTacSummary() {
@@ -879,8 +982,8 @@ function initEvents() {
     const t = e.target.closest('[data-act]');
     if (!t) return;
     const act = t.dataset.act;
-    if (act === 'menu-pick-out') { G.ui.menuOut = t.dataset.pid; G.sheet = { html: MENU_HTML() }; return; }
-    if (act === 'close-sheet' && t.classList.contains('sheet-wrap')) { closeSheet(); return; }
+    if (act === 'menu-pick-out') { G.ui.menuOut = t.dataset.pid; G.sheet = { html: MENU_HTML() }; render(); return; }
+    if (act === 'close-sheet' && t.classList.contains('sheet-wrap')) { if (t === e.target) closeSheet(); return; }
     const fn = window.ACT[act];
     if (fn) { e.preventDefault(); fn(t, e); }
   });
@@ -888,10 +991,11 @@ function initEvents() {
     const t = e.target;
     if (t.dataset.sync) { G.ui[t.dataset.sync] = t.type === 'range' ? +t.value : t.value; }
     if (t.dataset.act === 'slider') window.ACT.slider(t, e);
-    if (t.dataset.act === 'market-floor') { G.ui.marketFloor = +t.value; const m = t.closest('.card, label'); const lb = t.previousElementSibling; if (lb) lb.textContent = 'Рейтинг не ниже: ' + t.value; }
+    if (t.dataset.act === 'market-floor') { G.ui.marketFloor = +t.value; const m = t.closest('.card, label'); const lb = t.previousElementSibling; if (lb) lb.textContent = 'Живой рейтинг не ниже: ' + t.value; }
   });
   document.body.addEventListener('change', e => {
     if (e.target.dataset.act === 'market-floor') render();
+    if (e.target.id === 'mk-search') render();
   });
 }
 
@@ -900,7 +1004,7 @@ return { esc, badge, ovrCls, posTag, pname, myNextFixture, avgCond, trophySvg,
   scrBoot, scrHonors, scrPick, scrKits, scrDesk, scrSquad, playerCard, squadRows,
   scrTactics, scrLeague, scrMarket, scrInbox, scrMoney, scrCalendar, scrCups, scrSacked,
   scrMatchPre, scrMatchLive, scrMatchEnd, render, initEvents, updateTacSummary, renderMarketList,
-  MENU_HTML, euroTitle, euroStageName, tableHtml, tacSummary };
+  MENU_HTML, benchSheetHtml, euroTitle, euroStageName, tableHtml, tacSummary };
 })();
 window.UI = UI;
 window.render = UI.render;

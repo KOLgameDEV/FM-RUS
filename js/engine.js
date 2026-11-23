@@ -97,6 +97,38 @@ function posScore(p) {
 }
 const rating = p => clamp(Math.round(30 + posScore(p) * 3.05), 44, 88);
 
+// ---------- dynamic FC-27-style live rating ----------
+// base ovr is moved by condition, morale, sharpness, recent form, injury/ban.
+function recentAvg(p) {
+  const a = (p.recent || []).slice(-5);
+  if (!a.length) return null;
+  return a.reduce((x, y) => x + y, 0) / a.length;
+}
+function dynMods(p) {
+  const m = [];
+  const cond = p.cond >= 90 ? 2 : p.cond >= 80 ? 1 : p.cond >= 70 ? 0 : p.cond >= 60 ? -1 : p.cond >= 45 ? -3 : -5;
+  if (cond) m.push(['Тонус ' + p.cond, cond]);
+  if (p.mor >= 85) m.push(['Отличный настрой', 1]);
+  else if (p.mor < 45) m.push(['Упал духом (' + p.mor + ')', -2]);
+  if (p.sharp >= 80) m.push(['Свеж', 1]);
+  else if (p.sharp < 45) m.push(['Сбитый игровой ритм', -1]);
+  const ra = recentAvg(p);
+  if (ra != null && ra >= 7.2) m.push(['Форма ' + ra.toFixed(2), 2]);
+  else if (ra != null && ra <= 6.1) m.push(['Форма ' + ra.toFixed(2), -2]);
+  if (p.injured) m.push(['Травма (' + p.injured + ' дн.)', -Math.min(6, 3 + Math.floor(p.injured / 8))]);
+  if (p.ban) m.push(['Дисквалификация', -1]);
+  return m;
+}
+function dynRating(p) {
+  let r = p.ovr;
+  dynMods(p).forEach(m => r += m[1]);
+  return clamp(Math.round(r), 40, Math.max(44, p.pot));
+}
+// generated clubs are scaled down; real FC-27 players carry their own ovr
+function fc27Equiv(p) {
+  return p.real ? p.ovr : clamp(Math.round(30 + p.ovr * 0.7), 50, 86);
+}
+
 function ruName(rand, used) {
   for (let i = 0; i < 30; i++) {
     const first = pick(GD.NAMES_RU_FIRST, rand), last = pick(GD.NAMES_RU_LAST, rand);
@@ -151,7 +183,7 @@ function genPlayer(club, idx, pos, rand, usedNames) {
     ...a,
     cond: rint(rand, 78, 97), sharp: rint(rand, 55, 84), mor: rint(rand, 62, 89),
     contract: rint(rand, 1, 4),
-    injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false,
+    injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false, recent: [],
   };
   let raw;
   if (club.league === 'media' && GD.MEDIA_BASE[club.id] !== undefined) {
@@ -170,6 +202,7 @@ function genPlayer(club, idx, pos, rand, usedNames) {
   const v = valModel(p.ovr, p.age, club.league, club.rep);
   p.value = Math.max(2, Math.round(v * 100));
   p.wage = Math.max(8, Math.round(v * 140));
+  p.baseValue = p.value;
   return p;
 }
 
@@ -208,13 +241,14 @@ function genMarketPlayer(mk, i, rand) {
     tec: attr(), sho: attr(), men: attr(), gk: pos === 'GK' ? clamp(Math.round(mean + 1.5), 4, 19) : 4,
     cond: rint(rand, 80, 96), sharp: rint(rand, 55, 84), mor: rint(rand, 62, 89),
     contract: rint(rand, 1, 4), number: 0,
-    injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false,
+    injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false, recent: [],
   };
   p.pot = age <= 21 ? Math.min(93, ovr + rint(rand, 4, 10)) : ovr;
   p.ovr = star ? Math.min(93, mk.star) : Math.min(ovr, p.pot);
   p.growth = 0;
   const v = Math.max(2, Math.round(Math.pow(1.13, p.ovr - 60) * ageMult(p.age) * mk.priceK * 100));
   p.value = v;
+  p.baseValue = v;
   p.wage = Math.max(12, Math.round(v * 0.9));
   return p;
 }
@@ -234,6 +268,72 @@ function poolPlayers() {
     out.push(...marketPlayers(mk));
   }
   return out;
+}
+
+// ---------- real FC-27 players (GD.REALS) ----------
+function realPlayer(r, i) {
+  const rand = rng('real-' + i + '-' + r.last);
+  const mean = clamp((r.ovr - 30) / 3.05, 4, 19);
+  const attr = (bias) => clamp(Math.round(mean + (bias || 0) + (rand() * 2 - 1) * 1.4), 4, 19);
+  const pos = r.pos;
+  const p = {
+    id: 'real:' + i, clubId: r.free ? 'free' : 'pool:real',
+    first: r.first, last: r.last, age: r.age, nat: r.nat, pos,
+    foot: rand() < 0.78 ? 'Прав' : 'Лев',
+    pac: attr(['ST', 'MR', 'ML', 'DR', 'DL'].includes(pos) ? 0.6 : 0),
+    sta: attr(), strn: attr(pos === 'DC' || pos === 'DM' ? 0.6 : 0),
+    def: attr(['DC', 'DM', 'DR', 'DL'].includes(pos) ? 0.8 : pos === 'GK' ? 0 : -2),
+    pas: attr(['MC', 'DM', 'AM'].includes(pos) ? 0.7 : 0),
+    tec: attr(['AM', 'ML', 'MR', 'MC'].includes(pos) ? 0.7 : 0),
+    sho: attr(pos === 'ST' ? 1.2 : ['AM', 'MR', 'ML'].includes(pos) ? 0.4 : -1.2),
+    men: attr(), gk: pos === 'GK' ? clamp(Math.round(mean + 1), 4, 19) : 4,
+    cond: rint(rand, 78, 96), sharp: rint(rand, 58, 86), mor: rint(rand, 60, 90),
+    contract: r.free ? 1 : rint(rand, 2, 4), number: 0,
+    injured: 0, goals: 0, assists: 0, apps: 0, ratingSum: 0, yellow: 0, ban: 0, listed: false, recent: [],
+    ovr: clamp(r.ovr, 44, 99), pot: clamp(Math.max(r.pot || r.ovr, r.ovr), 44, 99),
+    growth: 0, real: true, freeAgent: !!r.free, realClub: r.free ? '' : (r.club || ''), league: r.league || 'other',
+  };
+  const usdM = Math.max(0.5, (r.fee || 1) * 1.12); // EUR -> USD
+  p.baseValue = Math.max(2, Math.round(usdM * GD.RUB_PER_USD));
+  p.value = p.baseValue;
+  p.wage = Math.max(40, Math.round(p.baseValue * 0.55));
+  return p;
+}
+function ensureReals(S) {
+  if (!GD.REALS || !GD.REALS.length) return;
+  if (S.realsAdded) return;
+  GD.REALS.forEach((r, i) => S.players.push(realPlayer(r, i)));
+  S.realsAdded = true;
+}
+
+// ---------- in-season value drift (like real markets) ----------
+function revalueAll(S) {
+  S.players.forEach(p => {
+    if (!p.baseValue) p.baseValue = p.value || valModel(p.ovr, p.age, (clubById(S, p.clubId) || { league: 'euro' }).league, (clubById(S, p.clubId) || { rep: 70 }).rep) * 100;
+    const d = dynRating(p) - p.ovr;
+    let f = 1 + d * 0.06;
+    if (p.apps) f += clamp(p.goals * 0.004 + p.assists * 0.002, 0, 0.18);
+    if (p.injured) f -= 0.15;
+    if (p.age >= 33) f -= (p.age - 33) * 0.08;
+    if (p.age <= 21 && p.pot > p.ovr) f += 0.08;
+    p.value = Math.max(1, Math.round(p.baseValue * clamp(f, 0.55, 2.2)));
+  });
+}
+
+// ---------- bench (запас) ----------
+const BENCH_MAX = 9;
+function benchOf(S) {
+  const starters = new Set(lineupPlayers(S, S.clubId, S.tactics).map(s => s.pid));
+  return (S.bench || []).map(id => S.players.find(p => p.id === id))
+    .filter(p => p && p.clubId === S.clubId && !starters.has(p.id));
+}
+function setBench(S, pid, on) {
+  S.bench = S.bench || [];
+  if (on) {
+    if (S.bench.length >= BENCH_MAX) return false;
+    if (!S.bench.includes(pid)) S.bench.push(pid);
+  } else S.bench = S.bench.filter(x => x !== pid);
+  return true;
 }
 
 // ---------- career/world bootstrap ----------
@@ -267,9 +367,10 @@ function newCareer(clubId, managerName) {
     cup: { byes: [], userOut: false, stage: 'live' },
     euro: { comp: null, stage: 'done', pts: 0, gf: 0, ga: 0, round: 0 },
     phase: 'season', difficulty: 'experienced', matchMins: 2,
-    euroTickets: {},
+    euroTickets: {}, bench: [],
   };
   S.tactics.slots = autoLineup(S, clubId, S.tactics.formation).map(x => x.pid);
+  ensureReals(S);
   genCupFixtures(S);
   return S;
 }
@@ -524,6 +625,10 @@ function simSegment(S, homeId, awayId, fromMin, toMin, seedStr, opts) {
         shot.kind = 'goal';
         shot.piece = 'open';
         shot.text = fullName(p) + ' ' + pickText(GOAL_TEXTS, rand);
+        if (rand() < 0.6) {
+          const mates = plan.filter(s => s.pid !== p.id && s.pos !== 'GK');
+          if (mates.length) shot.assistPid = pick(mates, rand).pid;
+        }
       } else {
         const r = rand();
         if (r < 0.62) { shot.kind = 'save'; shot.text = 'Вратарь ' + SAVE_TEXT + ' после удара — ' + fullName(p); }
@@ -688,6 +793,7 @@ function postMatch(S, fx, res, live) {
       const side = e.side === 'h' ? homeId : awayId;
       if (side !== cid) return;
       if (e.kind === 'goal' && e.pid) gMap[e.pid] = (gMap[e.pid] || 0) + 1;
+      if (e.kind === 'goal' && e.assistPid) aMap[e.assistPid] = (aMap[e.assistPid] || 0) + 1;
       if (e.kind === 'card' && e.pid) yMap[e.pid] = (yMap[e.pid] || 0) + 1;
       if (e.kind === 'injury' && e.pid) inMap[e.pid] = true;
     });
@@ -699,10 +805,12 @@ function postMatch(S, fx, res, live) {
       if (playedMin < 1 && live) return;
       p.apps++;
       p.goals += gMap[p.id] || 0;
-      const rate = clamp(6.4 + (gMap[p.id] || 0) * 0.9 + (rng(fx.id + ':' + p.id)() * 0.5 - 0.15)
+      p.assists += aMap[p.id] || 0;
+      const rate = clamp(6.4 + (gMap[p.id] || 0) * 0.9 + (aMap[p.id] || 0) * 0.5 + (rng(fx.id + ':' + p.id)() * 0.5 - 0.15)
         - 0.4 * (yMap[p.id] ? 1 : 0)
         + (s.pos === 'GK' && (myHome ? res.ag : res.hg) === 0 ? 0.6 : 0), 4.5, 9.6);
       p.ratingSum += rate;
+      p.recent = (p.recent || []).concat([+rate.toFixed(2)]).slice(-5);
       p.yellow += yMap[p.id] || 0;
       if (p.yellow >= 4) { p.yellow = 0; p.ban = Math.max(p.ban, 1); }
       if (inMap[p.id] && rng('inj' + fx.id + p.id)() < 0.45) p.injured = rint(rng('injd' + fx.id + p.id), 10, 27);
@@ -983,6 +1091,7 @@ function advanceDay(S) {
     const w = playersOf(S, S.clubId).reduce((a, p) => a + p.wage, 0);
     S.balance = Math.round((S.balance - w / 1000) * 10) / 10;
     if (S.balance < -30) S.confidence = clamp(S.confidence - 2, 1, 99);
+    revalueAll(S); // цены и рейтинги живут вместе с формой и состоянием
   }
   // 1st: sponsor
   if (d.getDate() === 1) {
@@ -1011,7 +1120,8 @@ function monthlyRegen(S) {
     if (p.clubId === 'free' || String(p.clubId).startsWith('pool:')) return;
     if (p.age <= 23 && p.sharp > 60 && rand() < 0.12) {
       const k = pick(['pac', 'sho', 'pas', 'tec', 'def'], rand);
-      p[k] = clamp(p[k] + 1, 4, 19); p.ovr = clamp(Math.round((posScore(p) * 3.05 + 30)), 44, p.pot);
+      p[k] = clamp(p[k] + 1, 4, 19);
+      p.ovr = Math.min(p.pot, Math.max(p.ovr, clamp(Math.round(posScore(p) * 3.05 + 30), 44, p.pot)));
     }
     if (p.age >= 33 && rand() < 0.10) p.pac = clamp(p.pac - 1, 4, 19);
   });
@@ -1040,10 +1150,11 @@ function wageCap(club) { return Math.round(club.rep * club.rep * 9); }
 function totalWage(S) { return playersOf(S, S.clubId).reduce((a, p) => a + p.wage, 0); }
 function buyPlayer(S, player, fee) {
   const club = myClub(S);
-  if (!inWindow(S.date) && player.clubId !== 'free' && !String(player.clubId).startsWith('pool:')) return { ok: false, why: 'window' };
+  const noWindow = player.clubId === 'free' || (String(player.clubId).startsWith('pool:') && !player.realClub);
+  if (!inWindow(S.date) && !noWindow) return { ok: false, why: 'window' };
   if (fee > S.budget) return { ok: false, why: 'money' };
   const target = String(player.clubId).startsWith('pool:') ? null : clubById(S, player.clubId);
-  const theirRep = target ? target.rep : Math.min(90, 50 + fnv(String(player.clubId)) % 40);
+  const theirRep = target ? target.rep : (player.realClub ? 88 : Math.min(90, 50 + fnv(String(player.clubId)) % 40));
   const newWage = Math.round(player.wage * ((theirRep && theirRep > club.rep) ? 1.25 : 1.05));
   if (totalWage(S) + newWage > wageCap(club)) return { ok: false, why: 'cap' };
   const v = player.value;
@@ -1064,6 +1175,8 @@ function buyPlayer(S, player, fee) {
   player.mor = clamp(player.mor + 8, 20, 99);
   player.contract = player.age >= 31 ? 2 : 3;
   player.listed = false;
+  player.realClub = '';
+  player.freeAgent = false;
   S.tactics.slots = autoLineup(S, S.clubId, S.tactics.formation).map(x => x.pid);
   addMsg(S, 'Спортивный директор', 'Трансфер закрыт', fullName(player) + ' подписан за ' + USD(fee) + ' (зарплата ' + IW(newWage) + ').');
   S.log.push('Куплен ' + fullName(player) + ' за ' + USD(fee));
@@ -1209,6 +1322,8 @@ function finalizeSeason(S, season, lg, rank, prize) {
       p.clubId = 'free'; p.contract = 2;
     } else p.contract = Math.max(1, p.contract - 1);
     p.goals = p.assists = p.apps = p.ratingSum = p.yellow = p.ban = 0;
+    p.recent = [];
+    p.injured = 0;
     p.renewed = false;
   });
   // keep squads >= 18 with youth
@@ -1226,6 +1341,15 @@ function finalizeSeason(S, season, lg, rank, prize) {
     c.budget = Math.round(c.budget * (['rpl', 'fnl', 'fnl2'].includes(c.league) ? 1 : 1));
   });
   S.season++;
+  S.players.forEach(p => {
+    const mk = GD.MARKETS.find(m => 'pool:' + m.id === p.clubId);
+    const c = clubById(S, p.clubId);
+    if (p.real) p.baseValue = Math.max(2, Math.round(p.baseValue * (p.age >= 32 ? 0.7 : p.age <= 22 ? 1.15 : 0.95)));
+    else if (mk) p.baseValue = Math.max(2, Math.round(Math.pow(1.13, p.ovr - 60) * ageMult(p.age) * mk.priceK * 100));
+    else if (c) p.baseValue = Math.max(2, Math.round(valModel(p.ovr, p.age, c.league, c.rep) * 100));
+    if (p.real) p.ovr = Math.min(p.ovr, p.pot);
+  });
+  revalueAll(S);
   S.budget = Math.round(myClub(S).budget * 0.35 + S.budget * 0.7);
   S.balance = Math.round(S.balance + myClub(S).rep * 2);
   S.confidence = clamp(S.confidence + 4, 1, 99);
@@ -1321,7 +1445,19 @@ function takeJob(S, clubId) {
   S.kit = defaultKit(clubById(S, clubId), fnv(clubId));
   S.tactics = { formation: '4-3-3', slots: [], style: 'direct', mentality: 0, press: 2, tempo: 3, line: 2, width: 2 };
   S.tactics.slots = autoLineup(S, clubId, '4-3-3').map(x => x.pid);
+  S.bench = [];
   S.played = 0;
+}
+// backfill for saves made before dynamic ratings / bench / real players existed
+function migrateSave(s) {
+  if (!s) return s;
+  s.bench = s.bench || [];
+  s.players.forEach(p => {
+    if (!p.recent) p.recent = [];
+    if (!p.baseValue) p.baseValue = p.value;
+  });
+  ensureReals(s);
+  return s;
 }
 
 // ---------- scouting flavor ----------
@@ -1470,9 +1606,11 @@ function tickEuro(S) {
 return {
   fnv, rng, clamp, poisson, pick, rint, F, IW, USD,
   toDate, toISO, addDays, fmtDate, fmtDateFull, fmtDDMM, inWinter,
-  attrM, ageMult, valModel, posScore, rating, genPlayer, makeSquad, genMarketPlayer, marketPlayers, poolPlayers,
+  attrM, ageMult, valModel, posScore, rating, dynRating, dynMods, recentAvg, fc27Equiv,
+  genPlayer, makeSquad, genMarketPlayer, marketPlayers, poolPlayers,
+  realPlayer, ensureReals, revalueAll, benchOf, setBench, BENCH_MAX, migrateSave,
   newCareer, defaultKit,
-  ft, ht, tacOf, autoLineup, lineupPlayers, teamScores, ovrXI, lambdas,
+  ft, ht, tacOf, autoLineup, lineupPlayers, teamScores, ovrXI, lambdas, available,
   instantMatch, simSegment, createLive, liveStep, applyLiveSub, postMatch,
   fullName, clubById, playersOf, myClub, addMsg, inWindow,
   seasonDates, circleFixtures, buildAllFixtures, genCupFixtures, nextCupRegionRound, finishCupGroups,

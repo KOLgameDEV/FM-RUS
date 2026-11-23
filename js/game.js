@@ -13,9 +13,11 @@ const G = {
   ui: {
     pickLeague: 'rpl', pickCountry: 'ru',
     squadFilter: 'all', marketCountry: 'eng', marketFeat: 'all', marketPos: 'all', marketFloor: 50,
+    marketSection: 'stars', marketSearch: '', marketSort: 'ovr', marketAge: 'all',
     tableLeague: null, selectedSlot: -1, viewingPlayer: null,
     inboxOpen: {}, msgIdx: 0,
   },
+  hist: [],
 };
 
 // ---------- device & folder ----------
@@ -59,6 +61,7 @@ function migrate(s) {
     phase: 'season', difficulty: 'experienced', matchMins: 2 };
   for (const k in d) if (s[k] === undefined) s[k] = d[k];
   s.v = 3;
+  if (window.ENG && ENG.migrateSave) ENG.migrateSave(s);
   return s;
 }
 function saveGame() {
@@ -104,8 +107,18 @@ function syncGlory() {
 // ---------- navigation ----------
 function go(screen, opts) {
   if (screen !== 'desk') G.ui.trophyScene = null;
+  if (screen !== 'desk' && G.screen !== screen && ['squad', 'tactics', 'league', 'market', 'player', 'other', 'calendar', 'inbox', 'money'].includes(G.screen)) G.hist.push(G.screen);
+  if (screen === 'desk') G.hist = [];
+  if (G.hist.length > 12) G.hist.shift();
   G.screen = screen;
   if (opts) Object.assign(G.ui, opts);
+  G.sheet = null;
+  render();
+}
+function goBack() {
+  const prev = G.hist.pop();
+  if (!prev) { go('desk'); return; }
+  G.screen = prev;
   G.sheet = null;
   render();
 }
@@ -199,6 +212,18 @@ const ACT = {
   },
   // squad & player
   'squad-filter'(el) { G.ui.squadFilter = el.dataset.v; go('squad'); },
+  'bench-open'() { openSheet('Замены', UI.benchSheetHtml()); },
+  'bench-add'(el) {
+    if (ENG.setBench(G.S, el.dataset.pid, true)) { saveGame(); toast('Игрок переведён на замену.'); }
+    else toast('В заядном запасе максимум 9.');
+    G.sheet = { title: 'Замены', html: UI.benchSheetHtml() }; render();
+  },
+  'bench-remove'(el) {
+    ENG.setBench(G.S, el.dataset.pid, false);
+    saveGame();
+    G.sheet = { title: 'Замены', html: UI.benchSheetHtml() }; render();
+  },
+  'go-back'() { goBack(); },
   'open-player'(el) { G.ui.viewingPlayer = el.dataset.id; go('player'); },
   'renew-years'(el) { G.ui.renewYears = +el.dataset.v; go('player'); },
   'renew-clause'(el) { G.ui.renewClause = el.dataset.v; go('player'); },
@@ -269,9 +294,12 @@ const ACT = {
   // league screen
   'table-league'(el) { G.ui.tableLeague = el.dataset.v; go('league'); },
   // market
+  'market-section'(el) { G.ui.marketSection = el.dataset.v; go('market'); },
   'market-country'(el) { G.ui.marketCountry = el.dataset.v; go('market'); },
   'market-feat'(el) { G.ui.marketFeat = el.dataset.v; go('market'); },
   'market-pos'(el) { G.ui.marketPos = el.dataset.v; go('market'); },
+  'market-age'(el) { G.ui.marketAge = el.dataset.v; go('market'); },
+  'market-sort'(el) { G.ui.marketSort = el.dataset.v; go('market'); },
   'market-floor'(el) { G.ui.marketFloor = +el.value; renderMarketList(); },
   // inbox
   'msg-open'(el) {
@@ -318,7 +346,7 @@ const ACT = {
   },
   'close-sheet'(el) { closeSheet(); },
   // match screens
-  'watch-live'(el) { go('match-live'); },
+  'watch-live'(el) { G.ui.menuOut = null; G.ui.liveSubsUsed = 0; go('match-live'); },
   'watch-instant'(el) {
     const fx = fxById(G.ui.fxId);
     const r = ENG.instantMatch(G.S, fx.home, fx.away, fx.id + ':' + G.S.date);
@@ -328,11 +356,17 @@ const ACT = {
     go('match-end');
   },
   'match-menu-open'(el) { G.sheet = { title: MENU_TITLE(), html: MENU_HTML() }; render(); },
+  'match-timeout'(el) {
+    if (window.MatchView && MatchView.active) MatchView.pauseForMenu();
+    G.sheet = { title: 'Тайм-аут · замены', html: MENU_HTML() };
+    render();
+  },
   'match-resume'(el) { closeSheet(); if (window.MatchView) MatchView.resume(); },
   'match-second-half'(el) { closeSheet(); if (window.MatchView) MatchView.secondHalf(); },
   'live-sub'(el) {
     if (window.MatchView) window.MatchView.doUserSub(el.dataset.out, el.dataset.inn);
     closeSheet();
+    if (window.MatchView && MatchView.active && !MatchView.htDone) MatchView.resume();
   },
   'match-back'(el) { go('desk'); },
   'trophy-honors'(el) { saveGame(); go('honors'); },
