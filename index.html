@@ -22,8 +22,9 @@
 <script src="js/ui.js"></script>
 <script>
   UI.initEvents();
-  boot();
-  render();
+  boot().then(render).catch(() => {
+    document.getElementById('app').innerHTML = '<div class="note">Не удалось открыть кабинет. Проверьте доступ к хранилищу браузера и обновите страницу.</div>';
+  });
 </script>
 </body>
 </html>

@@ -11,17 +11,22 @@ function badge(c, big) {
 }
 function ovrCls(v) { return v >= 75 ? 'hi' : v >= 62 ? 'mid' : 'lo'; }
 function dynCls(v) { return v >= 80 ? 'hi' : v >= 68 ? 'mid' : v >= 56 ? 'ok' : 'lo'; }
-// живой рейтинг как в FC 27:数字 + стрелка тренда относительно базового
+// живой рейтинг как в FC 27: серый базовый + текущий динамический со стрелкой тренда
 function rateChip(p) {
   const d = ENG.dynRating(p);
   const tr = d > p.ovr ? '<i class="tr up">▲</i>' : d < p.ovr ? '<i class="tr dn">▼</i>' : '';
-  return `<span class="ovr dyn ${dynCls(d)}">${d}${tr}</span>`;
+  return `<span class="ovr base" title="Базовый рейтинг">${p.ovr}</span><span class="ovr dyn ${dynCls(d)}">${d}${tr}</span>`;
 }
 function posTag(p) { return `<span class="pos">${GD.POS_ABBR[p.pos]}</span>`; }
 function pname(p) { return p.first + ' ' + p.last; }
+function injuryTag(p) {
+  if (!p || !p.injured) return '';
+  const label = (p.injuryType || 'Травма') + ' · ещё ' + p.injured + ' дн.' + (p.injuryReturn ? ' · до ' + ENG.fmtDate(p.injuryReturn) : '');
+  return `<span class="injury-mark" role="img" aria-label="${esc(label)}" title="${esc(label)}">✚</span>`;
+}
 function leagueClubs(lg) { return G.S ? G.S.clubs.filter(c => c.league === lg) : GD.CLUBS.filter(c => c.league === lg); }
 function myNextFixture() {
-  const up = G.S.fixtures.filter(f => !f.played && (f.home === G.S.clubId || f.away === G.S.clubId) && f.date >= G.S.date)
+  const up = G.S.fixtures.filter(f => f.date && !f.played && (f.home === G.S.clubId || f.away === G.S.clubId) && f.date >= G.S.date)
     .sort((a, b) => a.date.localeCompare(b.date));
   return up[0] || null;
 }
@@ -161,30 +166,86 @@ function kitDefaults(club) {
 }
 
 // ---------- screens ----------
+function menuIcon(name) {
+  const paths = {
+    settings: '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19 13 2 1-2 3-2-1a7 7 0 0 1-2 1l-.4 2h-4L10 17a7 7 0 0 1-2-1l-2 1-2-3 2-1a7 7 0 0 1 0-2l-2-1 2-3 2 1a7 7 0 0 1 2-1l.4-2h4l.4 2a7 7 0 0 1 2 1l2-1 2 3-2 1a7 7 0 0 1 0 2Z"/>',
+    play: '<path d="m9 6 9 6-9 6V6Z"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    slots: '<rect x="4" y="5" width="16" height="6" rx="2"/><rect x="4" y="14" width="16" height="6" rx="2"/><path d="M8 8h.01M8 17h.01"/>',
+    trophy: '<path d="M8 4h8v6a4 4 0 0 1-8 0V4ZM8 6H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4M12 14v5m-4 1h8"/>',
+  };
+  return `<svg class="menu-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.play}</svg>`;
+}
+function menuBackground() {
+  return `<div class="main-menu-scene" aria-hidden="true"><svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <linearGradient id="menuSky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#06101a"/><stop offset=".65" stop-color="#163448"/><stop offset="1" stop-color="#091b22"/></linearGradient>
+      <linearGradient id="menuGrass" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#2f7b54"/><stop offset="1" stop-color="#0d3e2c"/></linearGradient>
+      <radialGradient id="menuLight"><stop stop-color="#efffff"/><stop offset=".2" stop-color="#d8ffff" stop-opacity=".9"/><stop offset="1" stop-color="#c9f5ff" stop-opacity="0"/></radialGradient>
+      <pattern id="menuCrowd" width="18" height="16" patternUnits="userSpaceOnUse"><circle cx="4" cy="5" r="2" fill="#8da5ad" opacity=".32"/><circle cx="13" cy="11" r="2" fill="#d7e3df" opacity=".22"/></pattern>
+    </defs>
+    <rect width="1600" height="1000" fill="url(#menuSky)"/>
+    <circle cx="275" cy="170" r="190" fill="url(#menuLight)" opacity=".35"/><circle cx="1325" cy="170" r="190" fill="url(#menuLight)" opacity=".35"/>
+    <path d="M0 270 225 190h1150l225 80v365H0Z" fill="#0a1820"/>
+    <path d="M0 270 225 190h1150l225 80-90 72H90Z" fill="#1d3038"/>
+    <path d="M0 310h1600v250H0Z" fill="url(#menuCrowd)"/>
+    <path d="M0 470c310-95 1290-95 1600 0v116c-330 125-1270 125-1600 0Z" fill="#12262a"/>
+    <path d="M225 342h1150l-52 132H277Z" fill="#0c171c"/>
+    <g fill="#e9ffff"><rect x="198" y="175" width="54" height="13" rx="3"/><rect x="208" y="193" width="34" height="10" rx="2"/><rect x="1348" y="175" width="54" height="13" rx="3"/><rect x="1358" y="193" width="34" height="10" rx="2"/></g>
+    <path d="M150 575c390-155 910-155 1300 0l235 370H-85Z" fill="url(#menuGrass)"/>
+    <path d="M150 575c390-155 910-155 1300 0l235 370H-85Z" fill="none" stroke="#d8efe1" stroke-width="7" opacity=".75"/>
+    <path d="m535 610 530 0 238 353H297Z" fill="none" stroke="#d8efe1" stroke-width="6" opacity=".72"/>
+    <path d="M800 575v388" stroke="#d8efe1" stroke-width="6" opacity=".72"/>
+    <ellipse cx="800" cy="765" rx="102" ry="73" fill="none" stroke="#d8efe1" stroke-width="6" opacity=".72"/>
+    <path d="M505 665h-75v140h75m660-140h75v140h-75" fill="none" stroke="#d8efe1" stroke-width="6" opacity=".72"/>
+    <circle cx="800" cy="765" r="7" fill="#e6f4eb"/>
+    <g fill="#e9ffff" opacity=".85"><circle cx="205" cy="252" r="5"/><circle cx="1395" cy="252" r="5"/><circle cx="800" cy="292" r="5"/></g>
+  </svg></div>`;
+}
 function scrBoot() {
-  const slots = G.folder.slots.map((s, i) => {
-    if (!s || !s.clubId) {
-      return `<div class="card"><div class="kicker">Слот ${i + 1}</div><div class="muted">пусто</div>
-        <div class="btnrow"><button class="btn" data-act="slot-new" data-i="${i}">Создать тренера</button></div></div>`;
-    }
-    const club = ENG.clubById(s, s.clubId);
-    return `<div class="card"><div class="kicker">Слот ${i + 1}</div>
-      <div class="row" style="cursor:default">
-        ${badge(club, true)}
-        <div class="grow"><b>${esc(s.manager)}</b><div class="sub muted">${esc(club.name)} · ${GD.LEAGUES[club.league].short} · сезон ${s.season}/${s.season + 1}</div></div>
+  let active = G.folder.active >= 0 && G.folder.slots[G.folder.active] ? G.folder.active : G.folder.slots.findIndex(Boolean);
+  const save = active >= 0 ? G.folder.slots[active] : null;
+  const ready = save && ENG.seasonReady(save);
+  const club = save && ENG.clubById(save, save.clubId);
+  const summary = save && club ? `<div class="menu-career-summary">
+    <div class="menu-career-top"><span>Карьера ${active + 1}</span><span class="menu-status${ready ? ' ready' : ''}">${ready ? 'Итоги готовы' : 'В процессе'}</span></div>
+    <div class="menu-career-main">${badge(club)}<div class="grow"><b>${esc(save.manager)}</b><span>${esc(club.name)}</span></div><strong>${save.season}/${save.season + 1}</strong></div>
+  </div>` : '<div class="menu-career-summary menu-empty"><span>Три независимые карьеры</span><b>Ваш клуб. Ваши правила.</b></div>';
+  return `<main class="main-menu">
+    ${menuBackground()}
+    <div class="menu-shade"></div>
+    <header class="menu-brand"><div class="menu-brand-mark">FM</div><div><div class="menu-brand-overline">ФУТБОЛЬНЫЙ МЕНЕДЖЕР</div><h1>FM RUS <span>27</span></h1></div></header>
+    <section class="menu-content">
+      ${summary}
+      <div class="main-menu-actions">
+        <button class="fc-menu-button secondary" data-act="menu-settings">${menuIcon('settings')}<span><b>Настройки</b><small>Сложность, время матча и валюта</small></span><i>›</i></button>
+        ${save ? `<button class="fc-menu-button primary${ready ? ' season-ready' : ''}" data-act="${ready ? 'season-close-from-menu' : 'menu-continue'}">${menuIcon(ready ? 'trophy' : 'play')}<span><b>${ready ? 'Завершить итоги сезона' : 'Продолжить'}</b><small>${ready ? 'Сезон ' + save.season + '/' + (save.season + 1) + ' · 1 июня' : esc(save.manager) + ' · ' + esc(club.name)}</small></span><i>›</i></button>`
+          : `<button class="fc-menu-button primary" data-act="menu-create">${menuIcon('plus')}<span><b>Создать карьеру</b><small>Выберите клуб и начните сезон</small></span><i>›</i></button>`}
+        <button class="fc-menu-button secondary" data-act="menu-slots">${menuIcon('slots')}<span><b>Карьеры</b><small>Три отдельных сохранения</small></span><i>›</i></button>
       </div>
-      <div class="btnrow">
-        <button class="btn" data-act="slot-continue" data-i="${i}">Продолжить</button>
-        <button class="btn ghost" data-act="slot-new" data-i="${i}">Новый тренер</button>
-      </div></div>`;
+      <button class="menu-honors" data-act="honors">${menuIcon('trophy')} Заслуги тренеров</button>
+    </section>
+    <footer class="menu-footer"><span>КАБИНЕТ ${esc(deviceStamp())}</span><span>Сезоны без конца · прогнозы по истории клубов</span></footer>
+  </main>`;
+}
+function scrSlots() {
+  const cards = G.folder.slots.map((s, i) => {
+    if (!s) return `<article class="slot-card empty"><div class="kicker">Карьера ${i + 1}</div><h2>Свободный слот</h2><p class="muted small">Отдельное сохранение на этом устройстве.</p><button class="btn" data-act="slot-new" data-i="${i}">Создать карьеру</button></article>`;
+    const c = ENG.clubById(s, s.clubId), ready = ENG.seasonReady(s);
+    return `<article class="slot-card"><div class="slot-card-head"><div class="kicker">Карьера ${i + 1}</div><span class="menu-status${ready ? ' ready' : ''}">${ready ? 'Итоги готовы' : 'Сезон ' + s.season + '/' + (s.season + 1)}</span></div>
+      <div class="slot-manager">${badge(c, true)}<div class="grow"><h2>${esc(s.manager)}</h2><p class="muted small">${esc(c.name)} · ${esc(GD.LEAGUES[c.league].short)}</p></div></div>
+      <div class="slot-meta"><span>${esc(ENG.fmtDate(s.date))}</span><span>${s.players.length} игроков</span></div>
+      <div class="btnrow"><button class="btn" data-act="slot-continue" data-i="${i}">${ready ? 'К итогам' : 'Продолжить'}</button><button class="btn danger" data-act="slot-delete" data-i="${i}">Удалить</button></div></article>`;
   }).join('');
-  return `
-  <div class="kicker">Сезон 2026/27 · кабинет ${esc(deviceStamp())}</div>
-  <h1>Кабинет</h1>
-  <p class="muted small">Три сохранения — три тренера. Фамилию задаёте сами. РПЛ, Первая лига, ФНЛ-2, ФНЛ-3, медийная лига и десять зарубежных чемпионатов.</p>
-  <div class="note">Кабинет ···· только на этом телефоне или компьютере. Ссылка не переносит чужую карьеру: у другого человека свои слоты, свои клубы и свои заслуги.</div>
-  ${slots}
-  <div class="btnrow"><button class="btn ghost" data-act="honors">Заслуги тренеров</button></div>`;
+  return `<section class="pre-screen slots-screen"><button class="btn ghost" data-act="slots-back">← Главное меню</button><div class="kicker">Кабинет ${esc(deviceStamp())}</div><h1>Ваши карьеры</h1><p class="muted small">У каждого слота собственный файл сохранения. Переключение не меняет другие карьеры.</p><div class="slots-grid">${cards}</div></section>`;
+}
+function scrSettings() {
+  const settings = G.S || G.folder.settings;
+  return `<section class="pre-screen settings-screen"><button class="btn ghost" data-act="settings-back">← Главное меню</button><div class="kicker">Настройки</div><h1>Игра на вашем уровне</h1>
+    <div class="card"><h3>Сложность ботов</h3><div class="chips">${Object.keys(ENG.DIFFS).map(d => `<button class="chip ${settings.difficulty === d ? 'on' : ''}" data-act="difficulty" data-v="${d}">${{ novice: 'Новичок', experienced: 'Опытный', pro: 'Профессионал', world: 'Мировой класс' }[d]}</button>`).join('')}</div><p class="muted small">${esc((ENG.DIFFS[settings.difficulty] || {}).desc || '')}</p></div>
+    <div class="card"><h3>Длительность матча</h3><div class="chips">${[2, 3, 5].map(m => `<button class="chip ${settings.matchMins === m ? 'on' : ''}" data-act="matchmins" data-v="${m}">${m} мин</button>`).join('')}</div><p class="muted small">Время указано для одного тайма. Можно менять в любой момент.</p></div>
+    <div class="card"><h3>Валюта</h3><div class="chips">${ENG.CURS.map(c => `<button class="chip ${(settings.currency || 'rub') === c.code ? 'on' : ''}" data-act="currency" data-v="${c.code}">${c.sym} ${c.name}</button>`).join('')}</div><p class="muted small">Все цены, зарплаты и бюджеты показываются в выбранной валюте. Пример: ${ENG.F(120)}.</p></div>
+    <div class="note">${G.S ? 'Настройки применяются к текущей карьере «' + esc(ENG.myClub(G.S).name) + '».' : 'Эти настройки станут стандартными для новых карьер.'}</div></section>`;
 }
 function scrHonors() {
   const g = G.folder.glory;
@@ -195,7 +256,7 @@ function scrHonors() {
     <div>${esc(x.text)}</div><div class="muted small">Сезон ${esc(x.season)}</div></div></div>`).join('')
     : '<div class="note">Пока пусто. Выиграйте лигу или кубок — здесь появится табличка.</div>'}
   <div class="note">Сюда попадают только кубки и чемпионства этого кабинета. Запись остаётся, даже если стереть карьеру.</div>
-  <button class="btn ghost" data-act="back">Назад</button>`;
+  <button class="btn ghost" data-act="honors-back">Назад</button>`;
 }
 function scrPick() {
   const ru = ['rpl', 'fnl', 'fnl2', 'fnl3', 'media', 'amateur'];
@@ -213,7 +274,7 @@ function scrPick() {
       ${badge(c)}<div class="grow"><b>${esc(c.name)}</b><div class="sub muted">${esc(c.city)} · ${esc(c.stadium)}</div></div>
       <div class="val muted small">${ENG.F(c.budget)}</div></button>`).join('')}
   </div>
-  <div class="note">В РПЛ 1–2 места идут в Лигу чемпионов, 3-е — в квалификацию, 4-е в Лигу Европы, 5–6 в Лигу конференций.</div>`;
+  <div class="note">В РПЛ 1–2 места идут в Лигу чемпионов, 3-е — в квалификацию, 4-е в Лигу Европы, 5–6 в Лигу конференций. В зарубежных чемпионатах билеты распределяются по своим слотам УЛС, ЛЕ и ЛК.</div>`;
 }
 function scrKits() {
   const club = GD.CLUBS.find(c => c.id === G.ui.pickClub);
@@ -340,6 +401,11 @@ function scrDesk() {
   const leagueDone = fx ? false : true;
   const pos = ENG.tablePos(G.S, G.S.clubId);
   const unread = G.S.inbox.filter(m => !m.read).length;
+  const objectivesDone = (G.S.objectives || []).filter(o => ENG.objectiveProgress(G.S, o).met).length;
+  const injured = ENG.playersOf(G.S, G.S.clubId).filter(p => p.injured).sort((a, b) => b.injured - a.injured);
+  const medicalCard = injured.length ? `<div class="card medical-card"><h3>Медицинский штаб · ${injured.length}</h3>
+    ${injured.slice(0, 4).map(p => `<button class="row" data-act="open-player" data-id="${p.id}">${injuryTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${esc(p.injuryType || 'Травма')} · ещё ${p.injured} дн.</div></div><span class="tag">${p.injuryReturn ? 'до ' + ENG.fmtDate(p.injuryReturn) : 'восстановление'}</span></button>`).join('')}
+    ${injured.length > 4 ? `<div class="muted small">И ещё ${injured.length - 4} — подробности в составе.</div>` : ''}</div>` : '';
   const tbl = ENG.table(G.S, club.league).slice(0, 4).map((r, i) =>
     `<div class="row" style="cursor:default"><span class="val muted">${i + 1}</span><div class="grow">${esc(ENG.clubById(G.S, r.id).name)}</div><span class="val"><b>${r.pts}</b></span></div>`).join('');
   const nextCard = fx ? `
@@ -351,10 +417,11 @@ function scrDesk() {
         ${badge(ENG.clubById(G.S, fx.away))}
       </div>
       <button class="btn" data-act="open-match" data-id="${fx.id}" style="width:100%;margin-top:10px">К матчу</button>
+      ${fx.date > G.S.date ? `<button class="btn ghost" data-act="nav" data-v="calendar" style="width:100%;margin-top:6px">Открыть календарь</button>` : ''}
     </div>` : `
     <div class="card"><h3>Матчей нет</h3>
-      <div class="muted small">Календарь вашей лиги закрыт.</div>
-      <div class="btnrow"><button class="btn" data-act="season-close">Подвести итог сезона</button></div>
+      <div class="muted small">${ENG.seasonReady(G.S) ? 'Сезон завершён. Пора подвести итоги.' : 'Продолжайте календарь до 1 июня — тогда откроются итоги сезона.'}</div>
+      <div class="btnrow">${ENG.seasonReady(G.S) ? '<button class="btn" data-act="season-close-from-menu">Завершить итоги сезона</button>' : '<button class="btn ghost" data-act="nav" data-v="calendar">Открыть календарь</button>'}</div>
     </div>`;
   return `
   <div class="kicker">${GD.LEAGUES[club.league].name}</div>
@@ -370,9 +437,14 @@ function scrDesk() {
     <div class="cell"><div class="k">Зарплаты</div><div class="v">${ENG.IW(ENG.totalWage(G.S))}</div></div>
     <div class="cell"><div class="k">Доверие</div><div class="v">${G.S.confidence}</div></div>
   </div>
+  ${medicalCard}
   <div class="card rowlist" style="padding:6px 10px">
     <button class="row" data-act="nav" data-v="inbox"><div class="grow">Почта</div><span class="tag${unread ? ' warn' : ''}">${unread ? unread + ' новых' : 'нет новых'}</span></button>
     <button class="row" data-act="nav" data-v="league"><div class="grow">Таблица</div><span class="muted small">${esc(ENG.clubById(G.S, (ENG.table(G.S, club.league)[0] || {}).id || club.id).name)} лидирует</span></button>
+    <button class="row" data-act="nav" data-v="cups"><div class="grow">Кубок России</div><span class="muted small">сетка и группы</span></button>
+    <button class="row" data-act="nav" data-v="euro"><div class="grow">Еврокубки</div><span class="muted small">УЛС · ЛЕ · ЛК</span></button>
+    <button class="row" data-act="nav" data-v="academy"><div class="grow">Молодёжная академия</div><span class="muted small">20 игроков · развитие</span></button>
+    <button class="row" data-act="nav" data-v="objectives"><div class="grow">Задачи сезона</div><span class="muted small">${objectivesDone}/${(G.S.objectives || []).length} выполняются</span></button>
   </div>
   <div class="note">Средний тонус состава ${avgCond()}. Ниже 65 нужна восстановительная, иначе в матче команда играет слабее.</div>
   <div class="btnrow">
@@ -389,7 +461,7 @@ function squadRows(filter) {
   const bench = new Set((G.S.bench || []).map(id => id));
   return sq.map(p => `
     <button class="row${starters.has(p.id) ? ' starter' : ''}" data-act="open-player" data-id="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b> <span class="muted small">${p.age} лет · ${p.apps ? p.goals + 'г ' + p.assists + 'п' : 'тонус ' + p.cond}</span>
+      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>${injuryTag(p)} <span class="muted small">${p.age} лет · ${p.apps ? p.goals + 'г ' + p.assists + 'п' : 'тонус ' + p.cond}</span>
       <div class="sub muted">${starters.has(p.id) ? 'основа · ' : bench.has(p.id) ? 'запас · ' : 'резерв · '}${p.mor < 45 ? 'настрой ' + p.mor + ' · ' : ''}${p.injured ? 'травма ' + p.injured + ' дн. · ' : ''}${p.ban ? 'дискв. · ' : ''}${p.cond < 65 ? 'тонус ' + p.cond + ' · ' : ''}${p.apps ? 'оц. ' + (p.ratingSum / p.apps).toFixed(2) : ''}</div></div>
       ${rateChip(p)}
     </button>`).join('');
@@ -397,31 +469,140 @@ function squadRows(filter) {
 function scrSquad() {
   const f = G.ui.squadFilter;
   return `
-  <button class="bench-arrow" data-act="bench-open" title="Замены">⇤</button>
   <div class="kicker">${esc(ENG.myClub(G.S).name)}</div><h1>Состав</h1>
   <div class="chips">${[['all', 'Все'], ['gk', 'Вратари'], ['def', 'Защита'], ['mid', 'Полузащита'], ['fwd', 'Атака']].map(([k, n]) =>
     `<button class="chip ${f === k ? 'on' : ''}" data-act="squad-filter" data-v="${k}">${n}</button>`).join('')}</div>
-  <div class="card rowlist" style="padding:6px 10px">${squadRows(f)}</div>
-  <div class="muted small" style="margin-top:8px">Стрелка слева — шторка замен: сначала поставьте игроков на замену, потом выпускайте их в матче при паузе или тайм-ауте.</div>`;
+  <div class="card rowlist" style="padding:6px 10px">${squadRows(f)}</div>`;
+}
+function academyGroup(p) {
+  if (p.pos === 'GK') return 'gk';
+  if (['DR', 'DL', 'DC'].includes(p.pos)) return 'def';
+  if (['DM', 'MC', 'AM', 'MR', 'ML'].includes(p.pos)) return 'mid';
+  return 'fwd';
+}
+function academyPlayers() {
+  const filter = G.ui.academyFilter || 'all';
+  let list = ENG.youthPlayers(G.S).filter(p => filter === 'all' || academyGroup(p) === filter);
+  const sort = G.ui.academySort || 'pot';
+  list = list.slice().sort((a, b) =>
+    sort === 'age' ? a.age - b.age || b.pot - a.pot :
+    sort === 'ovr' ? b.ovr - a.ovr || b.pot - a.pot :
+    sort === 'growth' ? (b.pot - b.ovr) - (a.pot - a.ovr) : b.pot - a.pot || b.ovr - a.ovr
+  );
+  return list;
+}
+function academyRow(p) {
+  const growth = Math.max(0, p.pot - p.ovr);
+  const band = p.pot >= 85 ? 'elite' : p.pot >= 78 ? 'standout' : p.pot >= 70 ? 'solid' : 'squad';
+  return `<button class="academy-player" data-act="open-player" data-id="${p.id}">
+    <span class="academy-number">${p.number}</span>${posTag(p)}
+    <span class="academy-name"><b>${esc(pname(p))}</b>${injuryTag(p)}<small>${p.age} лет · ${esc(p.trait)}</small></span>
+    <span class="academy-rating ${dynCls(p.ovr)}"><b>${p.ovr}</b><small>OVR</small></span>
+    <span class="academy-potential ${band}"><b>${p.pot}</b><small>POT +${growth}</small></span>
+    <span class="academy-growth"><i style="width:${Math.min(100, growth * 4)}%"></i></span>
+    <span class="academy-open">→</span>
+  </button>`;
+}
+function scrAcademy() {
+  const all = ENG.youthPlayers(G.S);
+  const avgOvr = Math.round(all.reduce((a, p) => a + p.ovr, 0) / Math.max(1, all.length));
+  const avgPot = Math.round(all.reduce((a, p) => a + p.pot, 0) / Math.max(1, all.length));
+  const best = all.slice().sort((a, b) => b.pot - a.pot || b.ovr - a.ovr)[0];
+  const cooldown = G.S.youthTrainedOn && G.S.date < ENG.addDays(G.S.youthTrainedOn, 7);
+  return `<section class="academy-hub">
+    <div class="academy-brand"><span>FC 27</span><i>YOUTH ACADEMY</i></div>
+    <div class="academy-hero">
+      <div><div class="kicker">${esc(ENG.myClub(G.S).name)} · сезон ${G.S.season}/${G.S.season + 1}</div><h1>Молодёжная академия</h1>
+      <p>Двадцать воспитанников. Низкий текущий уровень, разный потолок и шанс добраться до первой команды.</p></div>
+      ${badge(ENG.myClub(G.S), true)}
+    </div>
+    <div class="academy-metrics">
+      <div><span>Состав</span><b>${all.length}</b><small>игроков</small></div>
+      <div><span>Средний OVR</span><b>${avgOvr}</b><small>текущий</small></div>
+      <div><span>Средний POT</span><b>${avgPot}</b><small>потолок</small></div>
+      <div><span>Лучший потолок</span><b>${best ? best.pot : '—'}</b><small>${best ? esc(best.last) : ''}</small></div>
+    </div>
+    ${best ? `<button class="academy-prospect" data-act="open-player" data-id="${best.id}">
+      <span class="academy-prospect-label">Главный талант</span>${posTag(best)}
+      <span class="grow"><b>${esc(pname(best))}</b><small>${best.age} лет · ${esc(best.trait)} · запас роста +${best.pot - best.ovr}</small></span>
+      <span class="academy-potential elite"><b>${best.pot}</b><small>POT</small></span><span>→</span>
+    </button>` : ''}
+    <div class="academy-toolbar">
+      <div class="chips">${[['all', 'Все'], ['gk', 'Вратари'], ['def', 'Защита'], ['mid', 'Полузащита'], ['fwd', 'Атака']].map(([k, n]) =>
+        `<button class="chip ${(G.ui.academyFilter || 'all') === k ? 'on' : ''}" data-act="academy-filter" data-v="${k}">${n}</button>`).join('')}</div>
+      <div class="chips">${[['pot', 'По потолку'], ['ovr', 'По рейтингу'], ['growth', 'По запасу роста'], ['age', 'По возрасту']].map(([k, n]) =>
+        `<button class="chip ${(G.ui.academySort || 'pot') === k ? 'on' : ''}" data-act="academy-sort" data-v="${k}">${n}</button>`).join('')}</div>
+    </div>
+    <div class="academy-list">${academyPlayers().map(academyRow).join('') || '<div class="note">В этой группе игроков нет.</div>'}</div>
+    <div class="academy-development">
+      <div><b>Развивающая тренировка</b><span>Один раз в неделю · 0.5 млн ₽. Повышает тонус и даёт шанс прибавить рейтинг до потолка.</span></div>
+      <button class="btn" data-act="academy-train" ${cooldown || G.S.budget < .5 ? 'disabled' : ''}>${cooldown ? 'Доступна через неделю' : 'Провести тренировку'}</button>
+    </div>
+    <div class="academy-foot">OVR — текущий рейтинг · POT — возможный потолок · +N — запас роста. Юноши не участвуют в матчах основной команды, пока не подпишут профессиональный контракт.</div>
+  </section>`;
+}
+function youthPlayerCard(p) {
+  const attrs = p.pos === 'GK'
+    ? [['Вратарская', p.gk], ['Игра руками', p.def], ['Характер', p.men], ['Выбор позиции', p.pas]]
+    : [['Скорость', p.pac], ['Удар', p.sho], ['Пас', p.pas], ['Техника', p.tec], ['Отбор', p.def], ['Мощь', p.strn], ['Выносливость', p.sta], ['Характер', p.men]];
+  const growth = Math.max(0, p.pot - p.ovr);
+  return `<section class="academy-hub academy-player-card">
+    <div class="academy-brand"><span>FC 27</span><i>YOUTH PROFILE</i></div>
+    <button class="academy-back" data-act="go-back">← Академия</button>
+    <div class="kicker">${GD.POS_FULL[p.pos]} · ${esc(p.nat)} · №${p.number}</div><h1>${esc(pname(p))}${injuryTag(p)}</h1>
+    <div class="academy-profile-head">
+      <div class="academy-big-rating ${dynCls(p.ovr)}"><b>${p.ovr}</b><span>OVR</span></div>
+      <div class="academy-big-pot"><b>${p.pot}</b><span>POT</span><small>+${growth} до потолка</small></div>
+      <div class="grow"><b>${p.age} лет · ${p.foot} нога</b><span>${esc(p.trait)}</span><span>В академии с ${p.academyJoined} года</span></div>
+    </div>
+    <div class="academy-pot-bar"><i style="width:${Math.min(100, growth * 4)}%"></i></div>
+    <div class="academy-metrics">
+      <div><span>Тонус</span><b>${p.cond}</b><small>состояние</small></div>
+      <div><span>Свежесть</span><b>${p.sharp}</b><small>ритм</small></div>
+      <div><span>Настрой</span><b>${p.mor}</b><small>мотивация</small></div>
+      <div><span>Развитие</span><b>${p.development}</b><small>тренировок</small></div>
+    </div>
+    <div class="academy-attributes">${attrs.map(a => attrLine(a[0], a[1] * 5)).join('')}</div>
+    <div class="note">${esc(scoutingBlurb(p))} Юный игрок не выступает за основу до подписания профессионального контракта.</div>
+    <div class="btnrow"><button class="btn" data-act="promote-youth" data-pid="${p.id}">Подписать и перевести в основу</button>
+      <button class="btn danger" data-act="release-youth" data-pid="${p.id}">Отпустить из академии</button></div>
+  </section>`;
+}
+function objectiveBoardHtml() {
+  return (G.S.objectives || []).map(o => {
+    const p = ENG.objectiveProgress(G.S, o);
+    return `<div class="objective-row ${p.met ? 'done' : ''}"><span class="objective-check">${p.met ? '✓' : '•'}</span>
+      <div class="grow"><b>${esc(o.label)}</b><small>${esc(ENG.objValueText(o, p.value))} · цель: ${esc(ENG.objTargetText(o))}</small></div>
+      <span class="tag">${p.met ? 'Выполняется' : 'В работе'}</span></div>`;
+  }).join('');
+}
+function scrObjectives() {
+  const form = (G.S.form || []).slice(-5);
+  return `<div class="kicker">Совет директоров</div><h1>Задачи сезона</h1>
+    <div class="strip"><div class="cell"><div class="k">Репутация</div><div class="v">${G.S.managerRep || 55}</div></div>
+      <div class="cell"><div class="k">Доверие</div><div class="v">${G.S.confidence}</div></div>
+      <div class="cell"><div class="k">Последние</div><div class="v">${form.length ? form.map(x => `<span class="form-${x.toLowerCase()}">${x}</span>`).join('') : '—'}</div></div></div>
+    <div class="card rowlist" style="padding:6px 10px">${objectiveBoardHtml()}</div>
+    <div class="note">Совет ставит задачи по силе состава и уровню лиги — с каждым сезоном их больше и они требовательнее. Невыполнение большинства задач при низком доверии, длинная серия поражений или доверие ниже 16 после восьми матчей может стоить работы. Репутация влияет на шанс получить место в другом клубе.</div>
+    <button class="btn ghost" data-act="back">Назад</button>`;
 }
 function benchSheetHtml() {
-  const S = G.S, tac = S.tactics;
-  const starters = ENG.lineupPlayers(S, S.clubId, tac);
+  const S = G.S;
+  const starters = ENG.lineupPlayers(S, S.clubId, S.tactics);
   const stIds = new Set(starters.map(s => s.pid));
   const bench = ENG.benchOf(S);
   const all = ENG.playersOf(S, S.clubId).sort((a, b) => b.ovr - a.ovr);
   const reserve = all.filter(p => !stIds.has(p.id) && !bench.some(b => b.id === p.id));
   const row = (p, kind, btn) => `
-    <div class="row" style="cursor:default">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>
-      <div class="sub muted">${GD.POS_FULL[p.pos]} · тонус ${p.cond}${p.injured ? ' · травма ' + p.injured + ' дн.' : ''}${p.ban ? ' · дискв.' : ''}</div></div>
+    <div class="row" style="cursor:default">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>${injuryTag(p)}
+      <div class="sub muted">${GD.POS_FULL[p.pos]} · тонус ${p.cond}${p.injured ? ' · ' + esc(p.injuryType || 'травма') + ' ' + p.injured + ' дн.' : ''}${p.ban ? ' · дискв.' : ''}</div></div>
       ${rateChip(p)}${btn || ''}</div>`;
   const b = (pid, on) => `<button class="btn small ${on ? 'ghost' : ''}" data-act="${on ? 'bench-remove' : 'bench-add'}" data-pid="${pid}">${on ? 'убрать' : 'на замену'}</button>`;
   return `
   <h2>Замены<button class="x" data-act="close-sheet">×</button></h2>
-  <h3 class="sheet-h3">Первыйнадцать (${starters.length})</h3>
-  <div class="rowlist">${starters.map(s => row(S_player(s.pid), 'st')).join('')}</div>
-  <h3 class="sheet-h3">Запас (${bench.length}/${ENG.BENCH_MAX}) <span class="muted small">выходят при паузе матча или тайм-ауте</span></h3>
-  ${bench.length ? `<div class="rowlist">${bench.map(p => row(p, 'bn', b(p.id, true))).join('')}</div>` : '<div class="note">Пусто. Отметьте игроков ниже кнопкой «на замену».</div>'}
+  <p class="muted small">Отметьте до ${ENG.BENCH_MAX} игроков. Они смогут выйти при паузе матча или тайм-ауте.</p>
+  <h3 class="sheet-h3">Запас (${bench.length}/${ENG.BENCH_MAX})</h3>
+  ${bench.length ? `<div class="rowlist">${bench.map(p => row(p, 'bn', b(p.id, true))).join('')}</div>` : '<div class="note">Пока пусто. Выберите игроков из резерва ниже.</div>'}
   <h3 class="sheet-h3">Резерв</h3>
   <div class="rowlist">${reserve.map(p => row(p, 'rs', b(p.id, false))).join('')}</div>`;
 }
@@ -448,7 +629,7 @@ function playerCard(p) {
   const window = ENG.inWindow(G.S.date);
   return `
   <div class="kicker">${GD.POS_FULL[p.pos]} · ${esc(p.nat)}${p.real ? ' · FC 27' : ''}</div>
-  <h1>${esc(pname(p))}</h1>
+  <h1>${esc(pname(p))}${injuryTag(p)}</h1>
   <div class="muted small">${p.age} лет · ${p.foot} нога · №${p.number || '—'} · ${esc(p.realClub || clubLabel)}${club ? ' · ' + (GD.LEAGUES[club.league] || { short: 'Евро' }).short : p.clubId === 'free' ? ' | свободный агент' : ' | трансферный лист'}</div>
   <div style="display:flex;gap:16px;align-items:flex-end;margin:12px 0">
     <div><div class="kicker">живой рейтинг</div><div class="score dynbig ${dyn >= 75 ? 'up' : dyn < p.ovr ? 'down' : ''}" style="font-size:44px;text-align:left">${dyn}<span class="trend">${trend}</span></div></div>
@@ -505,20 +686,22 @@ function renewPanel(p) {
 }
 function buyPanel(p, isForeign, window) {
   const free = p.clubId === 'free' || (String(p.clubId).startsWith('pool:') && !p.realClub);
-  const fee = G.ui.bidFee || p.value;
+  const perRub = (ENG.curDef() || { perRub: 1 }).perRub;
+  const cv = mlnRub => Math.round(mlnRub * 100 / perRub) / 100; // млн ₽ → млн выбранной валюты
+  const fee = G.ui.bidFee || cv(p.value);
   if (free || !isForeign) {
     return `<div class="card"><h3>Трансфер</h3>
-      <label class="field"><span class="muted">Запрос клуба ${ENG.USD(p.value)}. Сумма в долларах, тысячи через точку.</span>
+      <label class="field"><span class="muted">Запрос клуба ${ENG.USD(p.value)}. Сумму вводите в млн ${esc((ENG.curDef() || {}).sym || '')}.</span>
       <input type="number" id="bid-fee" data-sync="bidFee" step="0.05" min="0.05" value="${fee}"></label>
-      <div class="chips">${[0.8, 1, 1.25].map(m => `<button class="chip ${Math.abs(fee - p.value * m) < 0.5 ? 'on' : ''}" data-act="bid-chip" data-v="${(p.value * m).toFixed(2)}">${m === 1 ? '100%' : Math.round(m * 100) + '%'} · ${ENG.USD(p.value * m)}</button>`).join('')}</div>
+      <div class="chips">${[0.8, 1, 1.25].map(m => `<button class="chip ${Math.abs(fee - cv(p.value * m)) < 0.05 ? 'on' : ''}" data-act="bid-chip" data-v="${cv(p.value * m)}">${m === 1 ? '100%' : Math.round(m * 100) + '%'} · ${ENG.USD(p.value * m)}</button>`).join('')}</div>
       ${window || free ? `<button class="btn" data-act="buy">Подписать</button>` : `<div class="note">Окно закрыто. Лето до 12 сентября, зима 20 января — 25 февраля.</div>`}
     </div>`;
   }
   return `<div class="card"><h3>Предложение</h3>
-    <label class="field"><span class="muted">Запрос клуба ${ENG.USD(p.value)}. Сумма в долларах.</span>
+    <label class="field"><span class="muted">Запрос клуба ${ENG.USD(p.value)}. Сумму вводите в млн ${esc((ENG.curDef() || {}).sym || '')}.</span>
     <input type="number" id="bid-fee" data-sync="bidFee" step="0.05" min="0.05" value="${fee}"></label>
-    <div class="chips">${[0.8, 1, 1.25].map(m => `<button class="chip ${Math.abs(fee - p.value * m) < 0.5 ? 'on' : ''}" data-act="bid-chip" data-v="${(p.value * m).toFixed(2)}">${m === 1 ? '100%' : Math.round(m * 100) + '%'} · ${ENG.USD(p.value * m)}</button>`).join('')}</div>
-    ${window ? `<button class="btn" data-act="buy">Предложить ${ENG.USD(fee)}</button>` : '<div class="note">Окно закрыто. Лето до 12 сентября, зима 20 января — 25 февраля.</div>'}
+    <div class="chips">${[0.8, 1, 1.25].map(m => `<button class="chip ${Math.abs(fee - cv(p.value * m)) < 0.05 ? 'on' : ''}" data-act="bid-chip" data-v="${cv(p.value * m)}">${m === 1 ? '100%' : Math.round(m * 100) + '%'} · ${ENG.USD(p.value * m)}</button>`).join('')}</div>
+    ${window ? `<button class="btn" data-act="buy">Предложить ${ENG.USD(fee * perRub)}</button>` : '<div class="note">Окно закрыто. Лето до 12 сентября, зима 20 января — 25 февраля.</div>'}
   </div>`;
 }
 function scoutingBlurb(p) {
@@ -545,6 +728,49 @@ const SLIDERS = [
   ['line', 'Линия обороны', ['Низко', 'Ниже', 'Середина', 'Высоко', 'Вперёд']],
   ['width', 'Ширина', ['Узко', 'Уже', 'Середина', 'Широко', 'Во фланг']],
 ];
+function sliderIndex(key, value) {
+  const idx = key === 'mentality' ? +value + 2 : +value;
+  return Math.max(0, Math.min(4, Number.isFinite(idx) ? idx : 2));
+}
+function sliderWord(key, value) {
+  const s = SLIDERS.find(x => x[0] === key);
+  return s ? s[2][sliderIndex(key, value)] : '';
+}
+function slotFit(p, pos) {
+  const adapt = ENG.adapt(p, pos);
+  const cls = adapt >= .9 ? 'good' : adapt >= .65 ? 'warn' : 'bad';
+  const rating = Math.max(1, Math.round(ENG.dynRating(p) * (.78 + .22 * adapt)));
+  return { adapt, cls, rating };
+}
+function slotFitChip(p, pos) {
+  const fit = slotFit(p, pos);
+  const label = fit.cls === 'good' ? 'родная позиция' : fit.cls === 'warn' ? 'небольшая несоответствующая позиция' : 'серьёзное несоответствие позиции';
+  return `<span class="ovr dyn slot-fit ${fit.cls}" title="${esc(label)} · адаптация ${Math.round(fit.adapt * 100)}%">${fit.rating}</span>`;
+}
+function tacticsDots(prefix) {
+  const tac = G.S.tactics;
+  const plan = ENG.lineupPlayers(G.S, G.S.clubId, tac);
+  const club = ENG.myClub(G.S);
+  return GD.FORMATIONS[tac.formation].map((c, i) => {
+    const xy = slotCoords(tac, i, tac);
+    const slot = plan.find(p => p.slot === i);
+    const p = slot && S_player(slot.pid);
+    if (!p) return '';
+    const fit = slotFit(p, xy.pos);
+    return `<button class="dot slot-fit-${fit.cls} ${G.ui.selectedSlot === i ? 'sel' : ''}" style="left:${xy.x}%;top:${xy.y}%" data-act="slot-select" data-i="${i}" data-drag-pid="${p.id}" data-drag-kind="starter" data-drag-slot="${i}" data-drop-slot="${i}" title="${esc(pname(p))} · ${GD.POS_FULL[xy.pos]} · рейтинг ${fit.rating}">
+      <span class="ball-dot" style="--c1:${club.color}">${p.number}</span><span class="lbl">${GD.POS_ABBR[xy.pos]} <b class="dot-rate">${fit.rating}</b></span></button>`;
+  }).join('');
+}
+function lineupBenchRows(inMatch) {
+  const tac = G.S.tactics;
+  const plan = ENG.lineupPlayers(G.S, G.S.clubId, tac);
+  const starters = new Set(plan.map(s => s.pid));
+  const namedBench = ENG.benchOf(G.S).filter(p => ENG.available(p) && !starters.has(p.id));
+  const list = (namedBench.length ? namedBench : ENG.playersOf(G.S, G.S.clubId).filter(p => ENG.available(p) && !starters.has(p.id)))
+    .slice().sort((a, b) => ENG.dynRating(b) - ENG.dynRating(a));
+  return list.map(p => `<button class="lineup-bench-player${G.ui.selectedSlot >= 0 ? ' assignable' : ''}" data-drag-pid="${p.id}" data-drag-kind="bench"${G.ui.selectedSlot >= 0 ? ` data-act="assign" data-pid="${p.id}"` : ''}>
+    ${posTag(p)}<span class="grow"><b>${esc(pname(p))}</b><small>${GD.POS_FULL[p.pos]} · тонус ${p.cond}</small></span>${rateChip(p)}</button>`).join('') || '<div class="note">Нет доступных запасных.</div>';
+}
 function slotCoords(s, i, tac) {
   const c = GD.FORMATIONS[tac.formation][i];
   const ment = (tac.mentality || 0) * 1.8, ln = (tac.line || 2) - 2, pr = (tac.press || 2) - 2;
@@ -562,34 +788,32 @@ function tacSummary(tac) {
 function scrTactics() {
   const tac = G.S.tactics;
   const plan = ENG.lineupPlayers(G.S, G.S.clubId, tac);
-  const dots = GD.FORMATIONS[tac.formation].map((c, i) => {
-    const xy = slotCoords(tac, i, tac);
-    const slot = plan.find(p => p.slot === i);
-    const p = slot && S_player(slot.pid);
-    const club = ENG.myClub(G.S);
-    if (!p) return '';
-    const d = ENG.dynRating(p);
-    const tr = d > p.ovr ? '▲' : d < p.ovr ? '▼' : '';
-    return `<button class="dot ${G.ui.selectedSlot === i ? 'sel' : ''}" style="left:${xy.x}%;top:${xy.y}%" data-act="slot-select" data-i="${i}">
-      <span class="ball-dot" style="--c1:${club.color}">${p.number}</span><span class="lbl">${GD.POS_ABBR[xy.pos]} <b class="dot-rate ${d >= 75 ? 'up' : d < p.ovr ? 'dn' : ''}">${d}${tr}</b></span></button>`;
-  }).join('');
   return `
+  <button class="bench-arrow tactics-bench-arrow" data-act="bench-open" title="Запас и резерв" aria-label="Открыть запас и резерв">⇥</button>
   <div class="kicker">Матч-план</div><h1>Тактика</h1>
   <div class="chips">${GD.FORM_LIST.map(f => `<button class="chip ${tac.formation === f ? 'on' : ''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
-  <div class="pitch" id="tac-pitch">${dots}</div>
+  <div class="pitch" id="tac-pitch">${tacticsDots('tac')}</div>
+  <div class="lineup-bench-panel">
+    <div class="lineup-bench-head"><b>Запас</b><span>Перетащите игрока на позицию, чтобы заменить или поменять футболистов местами.</span></div>
+    <div class="lineup-bench-list">${lineupBenchRows(false)}</div>
+  </div>
   <div class="card rowlist tac-eleven" style="padding:4px 10px;margin:8px 0">
-    ${plan.map(s => { const p = S_player(s.pid); return p ? `<button class="row" data-act="open-player" data-id="${p.id}">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b> <span class="muted small">№${p.number}</span></div>${rateChip(p)}</button>` : ''; }).join('')}
+    ${plan.map(s => { const p = S_player(s.pid); return p ? `<button class="row" data-act="open-player" data-id="${p.id}">${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b>${injuryTag(p)} <span class="muted small">${GD.POS_ABBR[s.pos]} · №${p.number}</span></div>${slotFitChip(p, s.pos)}</button>` : ''; }).join('')}
   </div>
   <div class="muted small" id="tac-summary" style="margin:8px 0">${esc(tacSummary(tac))}</div>
   <div class="chips">${GD.TACTICS.map(t => `<button class="chip ${tac.style === t.id ? 'on' : ''}" data-act="style" data-v="${t.id}">${t.name}</button>`).join('')}</div>
-  ${SLIDERS.map(s => `<label class="field"><span class="muted">${s[1]}: ${s[2][Math.max(0, Math.min(4, tac[s[0]] === undefined ? 2 : s[0] === 'mentality' ? tac.mentality + 2 : tac[s[0]] ?? 2))] || ''}</span>
-    <input type="range" data-act="slider" data-k="${s[0]}" min="${s[0] === 'mentality' ? -2 : 0}" max="${s[0] === 'mentality' ? 2 : 4}" value="${s[0] === 'mentality' ? tac.mentality : tac[s[0]] ?? 2}"></label>`).join('')}
+  ${SLIDERS.map(s => {
+    const value = s[0] === 'mentality' ? tac.mentality : tac[s[0]] ?? 2;
+    const word = sliderWord(s[0], value);
+    return `<label class="field"><span class="muted">${s[1]}: <b class="slider-word" data-slider-word="${s[0]}">${word}</b></span>
+      <input type="range" data-act="slider" data-k="${s[0]}" min="${s[0] === 'mentality' ? -2 : 0}" max="${s[0] === 'mentality' ? 2 : 4}" value="${value}" aria-valuetext="${word}"></label>`;
+  }).join('')}
   <div class="btnrow">
     ${[['attack', 'Установка: атака'], ['defence', 'Установка: оборона'], ['set', 'Стандарты'], ['physical', 'Объём'], ['rest', 'Восстановление']].map(t =>
       `<button class="btn ghost small ${G.S.focus === t[0] ? 'on' : ''}" data-act="train" data-v="${t[0]}">${t[1]}</button>`).join('')}
     <button class="btn small" data-act="tac-auto">Авто</button>
   </div>
-  <div class="note">Средний тонус состава ${UI_avgCond()}. Фокус тренировки действует до ближайшего матча.</div>`;
+  <div class="note">Жёлтая подсветка — небольшая смена позиции, красная — серьёзная; рейтинг уже учитывает адаптацию. Средний тонус состава ${UI_avgCond()}.</div>`;
 }
 function assignmentHtml() {
   const tac = G.S.tactics;
@@ -599,12 +823,24 @@ function assignmentHtml() {
   const list = ENG.playersOf(G.S, G.S.clubId).filter(p => !p.injured && !p.ban)
     .map(p => ({ p, fit: ENG.ft(p, pos) })).sort((a, b) => b.fit - a.fit);
   return `<h2>Кто на позиции ${GD.POS_ABBR[pos]}<button class="x" data-act="close-sheet">×</button></h2>
-  <div class="rowlist">${list.slice(0, 14).map(({ p, fit }) => `
+  <div class="rowlist">${list.slice(0, 14).map(({ p }) => `
     <button class="row" data-act="${used.has(p.id) ? 'close-sheet' : 'assign'}" data-pid="${p.id}">
-      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${p.age} лет · ${p.pos === pos ? 'родная позиция' : 'адаптация ' + Math.round(fit * 100)}% · тонус ${p.cond}${p.injured ? ' · травма' : ''}</div></div>
-      ${rateChip(p)}</button>`).join('')}</div>`;
+      ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${p.age} лет · адаптация ${Math.round(ENG.adapt(p, pos) * 100)}% · тонус ${p.cond}${p.injured ? ' · травма' : ''}</div></div>
+      ${slotFitChip(p, pos)}</button>`).join('')}</div>`;
 }
 function UI_avgCond() { return avgCond(); }
+function updateTacticSlider(el) {
+  const key = el.dataset.k;
+  const word = sliderWord(key, el.value);
+  const label = document.querySelector('[data-slider-word="' + key + '"]');
+  if (label) label.textContent = word;
+  el.setAttribute('aria-valuetext', word);
+  document.querySelectorAll('#tac-pitch .dot, #match-tac-pitch .dot').forEach(dot => {
+    const xy = slotCoords(G.S.tactics, +dot.dataset.i, G.S.tactics);
+    dot.style.left = xy.x + '%';
+    dot.style.top = xy.y + '%';
+  });
+}
 
 // ---------- league / table ----------
 const LEGENDS = {
@@ -645,11 +881,11 @@ function scrLeague() {
   <div class="kicker">Чемпионаты и кубок</div><h1>Лига</h1>
   ${chips}
   <div class="card">${tableHtml(lg)}</div>
-  ${lg === myLg && done ? `<button class="btn" data-act="season-close" style="width:100%">Закрыть сезон и перейти дальше</button>` : ''}`;
+  ${lg === myLg && done && ENG.seasonReady(G.S) ? `<button class="btn" data-act="season-close-from-menu" style="width:100%">Завершить итоги сезона</button>` : ''}`;
 }
 
 // ---------- market ----------
-const MK_SECTIONS = [['era', 'Старая эпоха'], ['promise', 'Высокий потенциал'], ['free', 'Свободные агенты'], ['all', 'Лиги и страны']];
+const MK_SECTIONS = [['era', 'Старая эпоха'], ['promise', 'Высокий потенциал'], ['free', 'Свободные агенты'], ['all', 'Страны и лиги']];
 // реальные игроки лиги/страны 65+ + сгенерированный пул этой страны; свободные агенты — только во вкладке «Свободные агенты»
 function inLeagueMarket(p, mk) {
   const lg = mk.inGame || mk.id;
@@ -694,21 +930,19 @@ function marketRows() {
     const delta = p.baseValue ? Math.round((p.value / p.baseValue - 1) * 100) : 0;
     const dt = delta >= 3 ? '<i class="tr up">+' + delta + '%</i>' : delta <= -3 ? '<i class="tr dn">' + delta + '%</i>' : '';
     return `<button class="row" data-act="open-player" data-id="${p.id}">
-      ${posTag(p)}<div class="grow"><b class="mk-name">${esc(pname(p))}</b>${p.era ? ' <span class="fc-tag era-tag">эпоха</span>' : p.real ? ' <span class="fc-tag">FC 27</span>' : ''}
+      ${posTag(p)}<div class="grow"><b class="mk-name">${esc(pname(p))}</b>${injuryTag(p)}${p.era ? ' <span class="fc-tag era-tag">эпоха</span>' : p.real ? ' <span class="fc-tag">FC 27</span>' : ''}
       <div class="sub muted">${esc(p.nat)} · ${p.age} лет${p.realClub ? ' · ' + esc(p.realClub) : p.clubId === 'free' ? ' · без клуба' : ''}${p.mor < 45 ? ' · настрой ' + p.mor : ''} · ${ENG.USD(price)}${dt ? ' ' : ''}${dt}</div></div>
       ${rateChip(p)}</button>`;
   }).join('');
 }
 function scrMarket() {
   const sec = G.ui.marketSection || 'era';
-  const top = GD.MARKETS.filter(m => m.top).map(m => m.id);
-  const rest = GD.MARKETS.filter(m => !m.top).map(m => m.id);
-  const mk = m => GD.MARKETS.find(x => x.id === m);
+  const selectedMarket = GD.MARKETS.find(m => m.id === G.ui.marketCountry) || GD.MARKETS[0];
   return `
   <div class="kicker">Все рынки · цены как в жизни, меняются по ходу сезона</div><h1>Рынок</h1>
   <div class="chips">${MK_SECTIONS.map(([k, n]) => `<button class="chip ${sec === k ? 'on' : ''}" data-act="market-section" data-v="${k}">${n}</button>`).join('')}</div>
-  ${sec === 'all' ? `<div class="chips">${top.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country}</button>`).join('')}</div>
-  <div class="chips">${rest.map(id => `<button class="chip ${G.ui.marketCountry === id ? 'on' : ''}" data-act="market-country" data-v="${id}">${mk(id).country} · ${mk(id).league}</button>`).join('')}</div>` : ''}
+  ${sec === 'all' ? `<div class="market-country-head"><b>${esc(selectedMarket.country)} — ${esc(selectedMarket.league)}</b><span class="muted small">${GD.MARKETS.length} рынков</span></div>
+  <div class="chips market-countries">${GD.MARKETS.map(m => `<button class="chip ${G.ui.marketCountry === m.id ? 'on' : ''}" data-act="market-country" data-v="${m.id}">${esc(m.country)} — ${esc(m.league)}</button>`).join('')}</div>` : ''}
   <label class="field"><span class="muted">Поиск: имя и фамилия, страна, клуб</span>
     <input type="search" id="mk-search" data-sync="marketSearch" placeholder="имя и фамилия игрока" value="${esc(G.ui.marketSearch || '')}"></label>
   <div class="chips">${[['all', 'Все'], ['tech', 'Техничный'], ['strong', 'Сильный'], ['fast', 'Быстрый'], ['shot', 'Удар'], ['pass', 'Пас'], ['tackle', 'Отбор']].map(([k, n]) =>
@@ -721,8 +955,8 @@ function scrMarket() {
     `<span class="sort-cell"><button class="chip ${(G.ui.marketSort || 'ovr') === k ? 'on' : ''}" data-act="market-sort" data-v="${k}">${n}</button>${(G.ui.marketSort || 'ovr') === k ? `<button class="tri-btn" data-act="market-sort-dir" title="${(G.ui.marketSortDir === 'asc') ? 'По возрастанию — сначала низкие значения' : 'По убыванию — сначала высокие значения'}">${G.ui.marketSortDir === 'asc' ? '▼' : '▲'}</button>` : ''}</span>`).join('')}</div>
   <label class="field"><span class="muted">Живой рейтинг не ниже: ${G.ui.marketFloor}</span>
     <input type="range" data-act="market-floor" data-sync="marketFloor" min="50" max="95" value="${G.ui.marketFloor}"></label>
-  <div class="card rowlist" id="market-list" style="padding:6px 10px">${marketRows()}</div>
-  <div class="note">Старая эпоха — легенды 2000-х/2010-х, которые всё ещё в строю (по открытым данным Transfermarkt и рейтингов FC 27). Свободные агенты — без клуба. В разделе «Лиги и страны» показаны все игроки выбранной страны или лиги с рейтингом 65+. Треугольник у сортировки: ▲ — сначала высокие значения (цена, возраст, рейтинг), ▼ — сначала низкие. Цены и цифры рейтинга «дышат»: форма, травмы и статистика двигают их во время сезона и после него.</div>`;
+  <div class="card rowlist" id="market-list" style="padding:6px 10px">${marketRows() || '<div class="note">По этим фильтрам игроков нет. Выберите другую страну или снизьте минимальный рейтинг.</div>'}</div>
+  <div class="note">Старая эпоха — легенды 2000-х/2010-х, которые всё ещё в строю (по открытым данным Transfermarkt и рейтингов FC 27). Свободные агенты — без клуба. В разделе «Страны и лиги» показаны все игроки выбранной страны или лиги с рейтингом 65+. Треугольник у сортировки: ▲ — сначала высокие значения (цена, возраст, рейтинг), ▼ — сначала низкие. Цены и цифры рейтинга «дышат»: форма, травмы и статистика двигают их во время сезона и после него.</div>`;
 }
 
 // ---------- inbox / money / calendar / cups / sacked ----------
@@ -735,14 +969,25 @@ function scrInbox() {
       <div class="btnrow"><button class="btn small" data-act="offer-accept" data-i="${i}">Продать за ${ENG.USD(o.fee)}</button>
       <button class="btn ghost small" data-act="offer-refuse" data-i="${i}">Отказать</button></div></div>`;
   }).join('');
-  const msgs = G.S.inbox.map(m => `
-    <div class="card" style="padding:10px 14px">
-      <button class="row" style="cursor:pointer" data-act="msg-open" data-id="${m.id}">
-        <div class="grow"><b>${m.read ? '' : '● '}<span class="kicker" style="display:inline;margin-right:8px">${esc(m.from)}</span>${esc(m.subject)}</b>
-        <div class="sub muted">${ENG.fmtDDMM(m.date)}</div></div><span class="muted">${G.ui.inboxOpen[m.id] ? '▴' : '▾'}</span></button>
-      ${G.ui.inboxOpen[m.id] ? `<div class="muted small" style="padding:8px 12px">${esc(m.body)}</div>` : ''}
-    </div>`).join('');
-  return `<div class="kicker">Связь с клубом</div><h1>Почта</h1>${offers}${msgs || '<div class="note">Писем нет.</div>'}`;
+  const filter = G.ui.inboxFilter || 'all';
+  const unread = G.S.inbox.filter(m => !m.read).length;
+  const important = G.S.inbox.filter(m => m.important).length;
+  const visible = G.S.inbox.filter(m => filter === 'all' || filter === 'unread' && !m.read || filter === 'important' && m.important);
+  const kindName = { injury: 'Медицина', job: 'Карьера', board: 'Совет', assistant: 'Помощник' };
+  const msgs = visible.map(m => {
+    const p = m.playerId ? S_player(m.playerId) : null;
+    return `<div class="card message-card${m.important ? ' important' : ''}${G.ui.focusedMessage === m.id ? ' focused' : ''}" id="message-${esc(m.id)}">
+      <button class="row" style="cursor:pointer" data-act="msg-open" data-id="${esc(m.id)}">
+        <div class="grow"><b>${m.read ? '' : '<span class="unread-dot">●</span> '}<span class="kicker" style="display:inline;margin-right:8px">${esc(m.from)}</span>${esc(m.subject)}</b>
+        <div class="sub muted">${ENG.fmtDDMM(m.date)}${m.kind ? ' · ' + esc(kindName[m.kind] || 'Письмо') : ''}</div></div>
+        ${m.important ? '<span class="tag important-tag">Важное</span>' : ''}<span class="muted">${G.ui.inboxOpen[m.id] ? '▴' : '▾'}</span></button>
+      ${G.ui.inboxOpen[m.id] ? `<div class="message-body">${esc(m.body)}</div>${p ? `<div class="btnrow"><button class="btn ghost small" data-act="msg-player" data-id="${esc(p.id)}">${injuryTag(p)} Открыть карточку игрока</button></div>` : ''}` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="kicker">Связь с клубом</div><h1>Почта</h1>
+    <div class="chips">${[['all', 'Все', G.S.inbox.length], ['important', 'Важные', important], ['unread', 'Непрочитанные', unread]].map(([k, n, count]) =>
+      `<button class="chip ${filter === k ? 'on' : ''}" data-act="inbox-filter" data-v="${k}">${n} · ${count}</button>`).join('')}</div>
+    ${offers}${msgs || '<div class="note">Писем нет.</div>'}`;
 }
 function scrMoney() {
   const cap = ENG.wageCap(ENG.myClub(G.S)), wage = ENG.totalWage(G.S);
@@ -761,23 +1006,173 @@ function scrMoney() {
     <div class="muted small" style="margin-top:6px">${G.S.confidence} / 99</div></div>
   <div class="note">Ниже 16 после восьми туров совет увольняет. Победа крупного клуба ценится выше, чем ничья аутсайдера.</div>`;
 }
+const CAL_MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const CAL_WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+function calendarCompetition(f) {
+  if (f.comp === 'league') {
+    const lg = GD.LEAGUES[f.league];
+    return { kind: 'league', short: lg ? lg.short : 'Лига', name: (lg ? lg.name : 'Лига') + (f.round ? ' · Тур ' + f.round : '') };
+  }
+  if (f.comp === 'cup') return { kind: 'cup', short: 'Кубок', name: 'FONBET Кубок России' + (f.label ? ' · ' + f.label : '') };
+  if (['ucl', 'uel', 'uecl', 'uclq'].includes(f.comp)) {
+    const kind = f.comp === 'uel' ? 'uel' : f.comp === 'uecl' ? 'uecl' : 'ucl';
+    return { kind, short: kind === 'ucl' ? 'ЛЧ' : kind === 'uel' ? 'ЛЕ' : 'ЛК', name: euroTitle(f.comp) + (f.label ? ' · ' + f.label : '') };
+  }
+  return { kind: 'other', short: 'Матч', name: f.label || 'Товарищеский матч' };
+}
+function calendarIcon(f) {
+  if (f.comp === 'cup') return trophySvg('cup', 18);
+  if (f.comp === 'league') return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m12 7 4 3-1.5 4.5h-5L8 10l4-3Zm0 0V3m4 7 4-2m-5.5 6.5 2.5 4m-7-4L7.5 19M8 10 4 8" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+  if (['ucl', 'uel', 'uecl', 'uclq'].includes(f.comp)) return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><ellipse cx="12" cy="12" rx="4" ry="9" stroke="currentColor" stroke-width="1.4"/><path d="M3 12h18M5 7h14M5 17h14" stroke="currentColor" stroke-width="1.3"/></svg>`;
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m8 12 3 3 5-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function calendarHasResult(f) {
+  return !!(f && f.played && Number.isFinite(f.hg) && Number.isFinite(f.ag));
+}
+function calendarOutcome(f) {
+  if (!calendarHasResult(f)) return null;
+  const home = f.home === G.S.clubId;
+  const my = home ? f.hg : f.ag, opp = home ? f.ag : f.hg;
+  return { code: my > opp ? 'W' : my < opp ? 'L' : 'D', cls: my > opp ? 'w' : my < opp ? 'l' : 'd', score: my + ':' + opp };
+}
+function calendarResultHtml(f) {
+  const outcome = calendarOutcome(f);
+  if (outcome) return `<span class="fifa-event-result fifa-wld ${outcome.cls}" title="Счёт ${outcome.score}">${outcome.code}</span>`;
+  return '<span class="fifa-event-result fifa-event-pending" title="Матч ещё не сыгран">—</span>';
+}
 function scrCalendar() {
-  const fx = G.S.fixtures.filter(f => (f.home === G.S.clubId || f.away === G.S.clubId)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 30);
-  const isMatchToday = fx.some(f => !f.played && f.date === G.S.date);
+  const month = G.ui.calendarMonth || G.S.date.slice(0, 7);
+  const selected = G.ui.calendarDate || G.S.date;
+  const club = ENG.myClub(G.S);
+  const fixtures = G.S.fixtures.filter(f => f.date && (f.home === G.S.clubId || f.away === G.S.clubId)).sort((a, b) => a.date.localeCompare(b.date));
+  const byDate = new Map();
+  fixtures.forEach(f => { if (!byDate.has(f.date)) byDate.set(f.date, []); byDate.get(f.date).push(f); });
+  const monthFixtures = fixtures.filter(f => f.date.startsWith(month));
+  const selectedFixtures = byDate.get(selected) || [];
+  const first = ENG.toDate(month + '-01');
+  const gridStart = new Date(first.getFullYear(), first.getMonth(), 1, 12);
+  gridStart.setDate(gridStart.getDate() - (gridStart.getDay() + 6) % 7);
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(d.getDate() + i);
+    const iso = ENG.toISO(d);
+    const dayFx = byDate.get(iso) || [];
+    const outside = d.getMonth() !== first.getMonth();
+    const dayLabel = ENG.fmtDateFull(iso) + (dayFx.length ? '. ' + dayFx.map(f => {
+      const comp = calendarCompetition(f);
+      const opp = ENG.clubById(G.S, f.home === G.S.clubId ? f.away : f.home);
+      return comp.name + ': ' + opp.name;
+    }).join('; ') : '. Матчей нет');
+    cells.push(`<button class="fifa-cal-day${outside ? ' outside' : ''}${iso === G.S.date ? ' today' : ''}${iso === selected ? ' selected' : ''}${iso < G.S.date ? ' past' : ''}${dayFx.length ? ' has-match' : ''}" data-act="calendar-date" data-v="${iso}" aria-label="${esc(dayLabel)}" title="${esc(dayLabel)}">
+      <span class="fifa-cal-day-top"><span class="fifa-cal-day-num">${d.getDate()}</span>${iso === G.S.date ? '<span class="fifa-cal-today-label">Сегодня</span>' : ''}</span>
+      <span class="fifa-cal-events">${dayFx.map(f => {
+        const comp = calendarCompetition(f);
+        const opp = ENG.clubById(G.S, f.home === G.S.clubId ? f.away : f.home);
+        return `<span class="fifa-cal-event fifa-event-${comp.kind}"><span class="fifa-event-icon">${calendarIcon(f)}</span><span class="fifa-event-copy"><b>${esc(comp.short)}</b><span>${esc(opp.name)}</span></span>${calendarResultHtml(f)}</span>`;
+      }).join('')}</span>
+    </button>`);
+  }
+  const seasonEnd = ENG.seasonCutoff(G.S);
+  const canSimulate = selected > G.S.date && selected <= seasonEnd;
+  const detail = selectedFixtures.map(f => {
+    const home = ENG.clubById(G.S, f.home), away = ENG.clubById(G.S, f.away);
+    const myHome = f.home === G.S.clubId;
+    const comp = calendarCompetition(f);
+    const hasResult = calendarHasResult(f);
+    const status = hasResult ? 'Сыгран' : f.date < G.S.date ? 'Не сыгран' : f.date === G.S.date ? 'Сегодня' : 'Запланирован';
+    return `<article class="fifa-match-card fifa-event-${comp.kind}">
+      <div class="fifa-match-meta"><span>${calendarIcon(f)} ${esc(comp.short)}</span><span>${status}${hasResult ? calendarResultHtml(f) : ''}</span></div>
+      <div class="fifa-match-comp">${esc(comp.name)}</div>
+      <div class="fifa-match-teams">
+        <div class="fifa-match-team">${badge(home, true)}<b>${esc(home.name)}</b></div>
+        <div class="fifa-match-score"><b>${hasResult ? f.hg + ':' + f.ag : 'VS'}</b><span>${myHome ? 'Дома' : 'В гостях'}</span></div>
+        <div class="fifa-match-team">${badge(away, true)}<b>${esc(away.name)}</b></div>
+      </div>
+      <div class="fifa-match-place"><span>${myHome ? 'Домашний матч' : 'Выездной матч'}</span><span>${esc(home.stadium)}</span></div>
+      ${f.played ? '' : `<button class="fifa-match-button" data-act="open-match" data-id="${f.id}">К матчу <span>→</span></button>`}
+    </article>`;
+  }).join('');
+  const agenda = monthFixtures.map(f => {
+    const opp = ENG.clubById(G.S, f.home === G.S.clubId ? f.away : f.home);
+    const comp = calendarCompetition(f), myHome = f.home === G.S.clubId;
+    return `<button class="fifa-agenda-item fifa-event-${comp.kind}" data-act="calendar-date" data-v="${f.date}">
+      <span class="fifa-agenda-date">${ENG.fmtDDMM(f.date)}</span>
+      <span class="fifa-agenda-icon">${calendarIcon(f)}</span>
+      <span class="fifa-agenda-copy"><b>${esc(opp.name)}</b><span>${esc(comp.name)}</span></span>
+      ${calendarHasResult(f) ? calendarResultHtml(f) : `<span class="fifa-agenda-result">${myHome ? 'Д →' : 'Г →'}</span>`}
+    </button>`;
+  }).join('');
+  const legend = [['league', 'Лига', 'league'], ['cup', 'Кубок', 'cup'], ['ucl', 'Лига чемпионов', 'ucl'], ['uel', 'Лига Европы', 'uel'], ['uecl', 'Лига конференций', 'uecl'], ['other', 'Матч', 'other']]
+    .filter(([kind]) => fixtures.some(f => calendarCompetition(f).kind === kind))
+    .map(([kind, name, comp]) => `<span class="fifa-legend-item fifa-event-${kind}"><i>${calendarIcon({ comp })}</i>${name}</span>`).join('');
   return `
-  <div class="kicker">${ENG.fmtDateFull(G.S.date)}</div><h1>Календарь</h1>
-  <div class="btnrow"><button class="btn" data-act="next-day"${isMatchToday ? '' : ''}>+ день</button></div>
-  <div class="note">Зимняя пауза с 7 декабря по 1 марта. Если уйти с игрового дня кнопкой «+ день», матч досимулирует помощник.</div>
-  <div class="card rowlist" style="padding:6px 10px">
-  ${fx.map(f => {
-    const oppId = f.home === G.S.clubId ? f.away : f.home;
-    const home = f.home === G.S.clubId;
-    const lab = f.label || (f.comp === 'league' ? 'Тур ' + f.round : f.comp);
-    return `<button class="row" ${f.played ? '' : `data-act="open-match" data-id="${f.id}"`}>
-      <span class="muted small" style="width:46px">${ENG.fmtDDMM(f.date)}</span>
-      <span class="tag">${home ? 'Д' : 'Г'}</span>
-      <div class="grow">${esc(ENG.clubById(G.S, oppId).name)} <span class="muted small">${esc(lab)}</span></div>
-      ${f.played ? `<b>${f.hg}:${f.ag}</b>` : '<span class="muted small">→</span>'}</button>`;
+  <section class="fifa-calendar" aria-label="Календарь матчей">
+    <div class="fifa-calendar-heading">
+      <div class="fifa-breadcrumb"><span>Карьера</span><i>/</i>Календарь</div>
+      <div class="fifa-calendar-title-row">
+        <div><div class="kicker">${esc(ENG.fmtDateFull(G.S.date))}</div><h1>Календарь</h1></div>
+        <div class="fifa-calendar-club">${badge(club, true)}<div><b>${esc(club.name)}</b><span>Сезон ${G.S.season}/${G.S.season + 1}</span></div></div>
+      </div>
+    </div>
+    <div class="fifa-calendar-toolbar">
+      <div class="fifa-month-switcher">
+        <button data-act="calendar-month" data-v="-1" aria-label="Предыдущий месяц">‹</button>
+        <div><span>Расписание клуба</span><b>${CAL_MONTHS[first.getMonth()]} ${first.getFullYear()}</b></div>
+        <button data-act="calendar-month" data-v="1" aria-label="Следующий месяц">›</button>
+      </div>
+      <div class="fifa-calendar-actions"><button data-act="calendar-today">Текущий день</button><button data-act="next-day">+ день</button></div>
+    </div>
+    <div class="fifa-calendar-layout">
+      <div class="fifa-calendar-main">
+        <div class="fifa-calendar-legend">${legend}<span class="fifa-result-key"><i class="w">W</i> победа <i class="d">D</i> ничья <i class="l">L</i> поражение</span><span class="fifa-today-key">Сегодня</span></div>
+        <div class="fifa-calendar-shell">
+          <div class="fifa-calendar-weekdays">${CAL_WEEKDAYS.map(d => `<span>${d}</span>`).join('')}</div>
+          <div class="fifa-calendar-grid">${cells.join('')}</div>
+        </div>
+      </div>
+      <aside class="fifa-calendar-sidebar">
+        <div class="fifa-sidebar-heading"><span>Выбранный день</span><b>${ENG.fmtDateFull(selected)}</b></div>
+        <div class="fifa-selected-matches">${selectedFixtures.length ? detail : '<div class="fifa-empty">В этот день матчей нет.<span>Выберите дату с отметкой матча.</span></div>'}</div>
+        ${canSimulate ? `<div class="fifa-sim-box"><button data-act="calendar-simulate">Досимитировать до ${ENG.fmtDate(selected)}</button><p>Пропущенные матчи сыграет помощник. Тренировки, финансы и состояние игроков тоже продвинутся.</p></div>` : selected > seasonEnd ? '<div class="fifa-empty">Симуляция текущего сезона заканчивается 1 июня. После этого игра вернётся в главное меню.</div>' : ''}
+        <div class="fifa-sidebar-heading fifa-agenda-heading"><span>Расписание</span><b>${CAL_MONTHS[first.getMonth()]}</b></div>
+        <div class="fifa-agenda-list">${agenda || '<div class="fifa-empty">В этом месяце матчей нет.</div>'}</div>
+      </aside>
+    </div>
+    <div class="fifa-calendar-note">Зимняя пауза: 7 декабря — 1 марта. Максимальная дата симуляции — 1 июня. В этот день игра вернётся в главное меню, где можно завершить итоги сезона.</div>
+  </section>`;
+}
+const EURO_COMP_META = [
+  { id: 'ucl', short: 'УЛС', label: 'Лига чемпионов', tickets: ['ucl', 'uclq'] },
+  { id: 'uel', short: 'ЛЕ', label: 'Лига Европы', tickets: ['uel'] },
+  { id: 'uecl', short: 'ЛК', label: 'Лига конференций', tickets: ['uecl'] },
+];
+function euroTicketLabel(ticket) {
+  return { ucl: 'Лига чемпионов', uclq: 'Отбор ЛЧ', uel: 'Лига Европы', uecl: 'Лига конференций' }[ticket] || 'Без турнира';
+}
+function euroTicketShort(ticket) { return { ucl: 'ЛЧ', uclq: 'Отбор', uel: 'ЛЕ', uecl: 'ЛК' }[ticket] || '—'; }
+function euroTeamsIn(roster, comp) {
+  if (comp === 'all') return roster;
+  const meta = EURO_COMP_META.find(c => c.id === comp);
+  return meta ? roster.filter(t => meta.tickets.includes(t.ticket)) : [];
+}
+function euroOverviewHtml(roster, action) {
+  return `<div class="euro-overview">${EURO_COMP_META.map(meta => {
+    const teams = euroTeamsIn(roster, meta.id);
+    const avg = teams.length ? (teams.reduce((a, t) => a + t.coef, 0) / teams.length).toFixed(1) : '—';
+    const leader = teams[0];
+    return `<${action === 'euro-view' ? 'button' : 'div'} class="euro-comp-card euro-comp-${meta.id}"${action === 'euro-view' ? ` data-act="${action}" data-v="${meta.id}"` : ''}>
+      <span class="euro-comp-trophy">${trophySvg(meta.id, 34)}</span>
+      <span class="euro-comp-copy"><span>${meta.short}</span><b>${meta.label}</b><small>${teams.length} команд · средний ${avg}</small>${leader ? `<em>Лидер: ${esc(leader.name)}</em>` : ''}</span>
+      ${action === 'euro-view' ? '<span class="euro-comp-arrow">→</span>' : ''}
+    </${action === 'euro-view' ? 'button' : 'div'}>`;
+  }).join('')}</div>`;
+}
+function euroHistoryHtml(t, season) {
+  const firstYear = season - 5;
+  return `<div class="euro-history" aria-label="Рейтинг за пять сезонов">${t.history.map((v, i) => {
+    const year = firstYear + i;
+    return `<span class="euro-history-cell" title="${year}/${String(year + 1).slice(-2)}: ${v}"><b>${v}</b><i style="height:${v}%"></i></span>`;
   }).join('')}</div>`;
 }
 function cupHtml() {
@@ -793,6 +1188,8 @@ function cupHtml() {
       `<div class="row" style="cursor:default"><div class="grow ${r.id === G.S.clubId ? 'me' : ''}" ${r.id === G.S.clubId ? 'style=color:#f2d7a2;font-weight:700' : ''}>${esc(ENG.clubById(G.S, r.id).name)}</div><b>${r.pts}</b></div>`).join('')}</div>`;
   }).join('');
   const e = G.S.euro || {};
+  const roster = ENG.euroRoster(G.S, G.S.season);
+  const myProfile = roster.find(t => t.id === G.S.clubId);
   const myCupFx = G.S.fixtures.filter(f => f.comp === 'cup' && (f.home === G.S.clubId || f.away === G.S.clubId)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12);
   const myEuroFx = G.S.fixtures.filter(f => ['ucl', 'uel', 'uecl', 'uclq'].includes(f.comp) && (f.home === G.S.clubId || f.away === G.S.clubId)).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 12);
   const fxList = arr => arr.map(f => {
@@ -806,8 +1203,11 @@ function cupHtml() {
     <div class="muted small">РПЛ: четыре группы по четыре, два круга. Регионы: плей-офф с июля. 1/8 — март, финал — 2 июня.</div>
     ${fxList(myCupFx)}</div>
   ${groups}
-  <div class="card"><h3>Еврокубки · сетка</h3>
-    <div class="muted small">${e.comp ? `${euroTitle(e.comp)} · ${euroStageName(e.stage)} · очки ${e.pts}` : 'Еврокубковый билет даётся по месту в РПЛ: 1–2 ЛЧ, 3 квалификация, 4 ЛЕ, 5–6 ЛК.'}</div>
+  <div class="card"><h3>Еврокубки · все участники</h3>
+    <div class="muted small">Три турнира, ${roster.length} клубов и пятилетний рейтинг. Нажмите на турнир, чтобы открыть полный список.</div>
+    ${euroOverviewHtml(roster, 'euro-view')}</div>
+  <div class="card"><h3>Еврокубки · ваш путь</h3>
+    <div class="muted small">${e.comp ? `${euroTitle(e.comp)} · ${euroStageName(e.stage)} · очки ${e.pts}` : 'Билеты распределяются по итогам чемпионатов: УЛС, отбор ЛЧ, ЛЕ и ЛК.'}${myProfile ? ` · ваш коэффициент ${myProfile.coef} · ${myProfile.level.name}` : ''}</div>
     <div class="chips">${['Квалификация', 'Общий этап', '1/8', '1/4', '1/2', 'Финал'].map(s =>
       `<span class="chip ${(euroStageName(e.stage) || '').startsWith(s) ? 'on' : ''}">${s}</span>`).join('')}</div>
     ${fxList(myEuroFx)}</div>`;
@@ -815,20 +1215,101 @@ function cupHtml() {
 function scrCups() {
   return `<div class="kicker">Сетка и группы</div><h1>Кубки</h1>${cupHtml()}`;
 }
+function scrEuro() {
+  const season = G.S.season;
+  const roster = ENG.euroRoster(G.S, season);
+  const comp = G.ui.euroComp || 'all';
+  const level = G.ui.euroLevel || 'all';
+  const levels = [...new Map(roster.map(t => [t.level.id, t.level])).values()];
+  const rows = euroTeamsIn(roster, comp).filter(t => level === 'all' || t.level.id === level);
+  const compLabel = comp === 'all' ? 'Все команды' : (EURO_COMP_META.find(c => c.id === comp) || {}).label;
+  return `<section class="euro-hub">
+    <div class="euro-hub-heading">
+      <div class="euro-breadcrumb"><span>КАРЬЕРА</span><i>/</i>ЕВРОКУБКИ</div>
+      <div class="euro-title-row"><div><div class="kicker">Сезон ${season}/${season + 1}</div><h1>Еврокубки</h1></div><div class="euro-season-mark"><b>5</b><span>сезонов<br>в рейтинге</span></div></div>
+      <p>Участники Лиги чемпионов, Лиги Европы и Лиги конференций. Коэффициент — средний клубный рейтинг за ${season - 5}/${String(season - 4).slice(-2)}–${season - 1}/${String(season).slice(-2)}.</p>
+    </div>
+    ${euroOverviewHtml(roster, 'euro-comp')}
+    <div class="euro-filters">
+      <div class="chips">${[['all', 'Все'], ...EURO_COMP_META.map(c => [c.id, c.label])].map(([id, name]) =>
+        `<button class="chip ${comp === id ? 'on' : ''}" data-act="euro-comp" data-v="${id}">${name}</button>`).join('')}</div>
+      <div class="chips euro-level-chips">${[['all', 'Все уровни'], ...levels.map(l => [l.id, l.short])].map(([id, name]) =>
+        `<button class="chip ${level === id ? 'on' : ''}" data-act="euro-level" data-v="${id}">${name}</button>`).join('')}</div>
+    </div>
+    <div class="euro-table" aria-label="${esc(compLabel)}">
+      <div class="euro-table-head"><span>#</span><span>Клуб</span><span>5 сезонов</span><span>Средний</span><span>Уровень</span><span>Турнир</span></div>
+      ${rows.length ? rows.map(t => `<div class="euro-row${t.id === G.S.clubId ? ' me' : ''}">
+        <span class="euro-rank">${String(t.rank).padStart(2, '0')}</span>
+        <span class="euro-club">${badge(t)}<span><b>${esc(t.name)}${t.id === G.S.clubId ? ' <em>вы</em>' : ''}</b><small>${esc(t.country)} · ${euroTicketLabel(t.ticket)}</small></span></span>
+        ${euroHistoryHtml(t, season)}
+        <span class="euro-coef"><b>${t.coef.toFixed(1)}</b><small>коэф.</small></span>
+        <span class="euro-level level-${t.level.id}">${esc(t.level.short)}</span>
+        <span class="euro-ticket ticket-${t.ticket}">${euroTicketShort(t.ticket)}</span>
+      </div>`).join('') : '<div class="euro-empty">В этом фильтре нет команд.</div>'}
+    </div>
+    <div class="euro-table-footer"><span>${esc(compLabel)} · ${rows.length}</span><span>Элита 85+ · сильный 75+ · евроклуб 65+</span></div>
+    <div class="euro-method"><b>Как считается уровень</b><span>Пять сезонных значений складываются и делятся на пять. Это внутренний модельный рейтинг игры, а не официальный коэффициент УЕФА. Турнир сезона показан отдельно: он зависит от места в чемпионате и пути квалификации.</span></div>
+  </section>`;
+}
 function euroTitle(c) { return c === 'ucl' ? 'Лига чемпионов' : c === 'uel' ? 'Лига Европы' : c === 'uecl' ? 'Лига конференций' : 'Квалификация ЛЧ'; }
 function euroStageName(st) {
   return { qual: 'Квалификация', league: 'Общий этап', r16: '1/8', qf: '1/4', sf: '1/2', final: 'Финал', champion: 'Победитель', done: '' }[st] || '';
 }
 function scrSacked() {
-  return `
-  <div class="kicker">Совет директоров</div><h1>Вы уволены</h1>
-  <p class="muted small">Доверие упало до ${G.S.confidence}. Ниже — клубы, которые готовы поговорить.</p>
-  ${(G.S.vacancies || []).map(id => {
-    const c = ENG.clubById(G.S, id);
-    return `<button class="row" data-act="take-job" data-id="${id}">${badge(c)}<div class="grow"><b>${esc(c.name)}</b>
-      <div class="sub muted">${esc(GD.LEAGUES[c.league].short)} · ${ENG.F(c.budget)}</div></div><span class="muted">→</span></button>`;
-  }).join('')}
-  <div class="btnrow"><button class="btn danger" data-act="restart">Начать заново</button></div>`;
+  const S = G.S;
+  const lastClub = ENG.clubById(S, S.lastClubId || S.clubId);
+  const offerIds = [...new Set((S.vacancies || []).concat((S.jobOffers || []).map(o => o.clubId)))];
+  const applications = S.applications || [];
+  const reason = { confidence: 'Совет директоров потерял доверие к вашей работе.', form: 'Серия плохих результатов стала причиной отставки.', objectives: 'Задачи сезона не выполнены, контракт расторгнут.', resigned: 'Вы расторгли контракт по собственному желанию.' }[S.sackReason] || 'Вы больше не работаете в клубе.';
+  const leagues = ['rpl', 'fnl', 'fnl2', 'fnl3', 'media', 'amateur'].concat(GD.FOREIGN_LEAGUES);
+  const league = G.ui.careerLeague || 'all';
+  const search = (G.ui.careerSearch || '').trim().toLowerCase();
+  const clubs = S.clubs.filter(c => c.league !== 'euro')
+    .filter(c => league === 'all' || (league === 'foreign' ? GD.FOREIGN_LEAGUES.includes(c.league) : c.league === league))
+    .filter(c => !search || (c.name + ' ' + c.city + ' ' + (GD.LEAGUES[c.league] || {}).name).toLowerCase().includes(search))
+    .sort((a, b) => b.rep - a.rep || a.name.localeCompare(b.name, 'ru'));
+  const clubRow = c => {
+    const pending = applications.some(a => a.clubId === c.id && a.status === 'pending');
+    const offered = offerIds.includes(c.id);
+    const response = applications.find(a => a.clubId === c.id && a.status === 'pending');
+    return `<div class="row career-club-row">${badge(c)}<div class="grow"><b>${esc(c.name)}</b>
+      <div class="sub muted">${esc((GD.LEAGUES[c.league] || {}).short || c.league)} · репутация ${c.rep} · ${ENG.F(c.budget)}</div>
+      ${response ? `<div class="sub muted">Заявка подана · ответ ${ENG.fmtDate(response.responseDate)}</div>` : ''}</div>
+      ${offered ? '<span class="tag">Есть предложение</span>' : pending ? '<span class="tag">Ожидание</span>' :
+        `<button class="btn small ghost" data-act="career-apply" data-id="${c.id}">Подать заявление</button>`}</div>`;
+  };
+  return `<section class="career-hub">
+    <div class="career-kicker">FREE AGENT · ${esc(S.manager)}</div>
+    <h1>${S.sackReason === 'resigned' ? 'Вы свободны' : 'Вас уволили'}</h1>
+    <p class="career-reason">${esc(reason)}</p>
+    <div class="career-status">
+      <div><span>Последний клуб</span><b>${lastClub ? esc(lastClub.name) : '—'}</b></div>
+      <div><span>Репутация</span><b>${S.managerRep || 55}</b><small>влияет на отклики</small></div>
+      <div><span>Доверие</span><b>${S.confidence}</b><small>последний контракт</small></div>
+      <div><span>Свободен с</span><b>${S.unemployedSince ? ENG.fmtDate(S.unemployedSince) : '—'}</b></div>
+    </div>
+    <div class="career-actions"><button class="btn" data-act="career-wait">Ждать 7 дней</button>
+      <a class="btn ghost" href="#vacancies">Предложения</a><a class="btn ghost" href="#applications">Все клубы</a></div>
+    <div class="career-section" id="vacancies"><div class="career-section-head"><span>01</span><div><b>Предложения работы</b><small>Можно принять сразу или продолжить поиск.</small></div></div>
+      ${offerIds.length ? `<div class="card rowlist" style="padding:6px 10px">${offerIds.map(id => {
+        const c = ENG.clubById(S, id);
+        return c ? `<div class="row">${badge(c)}<div class="grow"><b>${esc(c.name)}</b><div class="sub muted">${esc((GD.LEAGUES[c.league] || {}).short || c.league)} · ${ENG.F(c.budget)}</div></div>
+          <button class="btn small" data-act="take-job" data-id="${c.id}">Принять</button></div>` : '';
+      }).join('')}</div>` : '<div class="note">Пока нет предложений. Отправляйте заявки или ждите — агент будет присылать новости.</div>'}
+    </div>
+    <div class="career-section" id="applications"><div class="career-section-head"><span>02</span><div><b>Поиск работы</b><small>Заявление в любой клуб. Ответ приходит через 3–7 дней.</small></div></div>
+      <label class="field"><span class="muted">Лига</span><select id="career-league" data-sync="careerLeague">
+        <option value="all" ${league === 'all' ? 'selected' : ''}>Все лиги</option><option value="foreign" ${league === 'foreign' ? 'selected' : ''}>Все зарубежные</option>
+        ${leagues.map(l => `<option value="${l}" ${league === l ? 'selected' : ''}>${esc((GD.LEAGUES[l] || {}).name || l)}</option>`).join('')}
+      </select></label>
+      <label class="field"><span class="muted">Поиск клуба или города</span><input type="search" id="career-search" data-sync="careerSearch" value="${esc(G.ui.careerSearch || '')}" placeholder="например, Зенит или Мадрид"></label>
+      <div class="career-club-list">${clubs.map(clubRow).join('') || '<div class="note">По этим фильтрам клубов нет.</div>'}</div>
+    </div>
+    <div class="career-section"><div class="career-section-head"><span>03</span><div><b>Последние сообщения</b><small>Ответы клубов и новости агента.</small></div></div>
+      <div class="card rowlist" style="padding:6px 10px">${(S.inbox || []).slice(0, 5).map(m => `<div class="row" style="cursor:default;display:block"><b>${esc(m.subject)}</b><div class="sub muted">${esc(m.from)} · ${ENG.fmtDDMM(m.date)}</div><div class="small" style="margin-top:5px">${esc(m.body)}</div></div>`).join('')}</div>
+    </div>
+    <div class="btnrow"><button class="btn danger" data-act="restart">Начать заново</button></div>
+  </section>`;
 }
 
 // ---------- match screens ----------
@@ -846,18 +1327,29 @@ function scrMatchPre() {
   <button class="btn ghost" data-act="watch-instant">Сразу результат</button></div>`;
 }
 function scrMatchLive() {
+  const snap = window.MatchView ? MatchView.snapshot() : null;
+  const currentSpeed = snap ? snap.speed : 1;
+  const isPaused = !!(snap && snap.paused);
+  const atHalf = !!(snap && snap.halftime);
+  const playAct = atHalf ? 'match-second-half' : isPaused ? 'match-resume' : 'match-pause';
+  const playLabel = atHalf ? 'Второй тайм' : isPaused ? 'Продолжить' : 'Пауза';
   return `
-  <div class="match-head"><span id="lv-hs" class="grow small muted" style="text-align:right"></span>
-    <div class="score" id="lv-score">0:0</div><span id="lv-as" class="grow small muted"></span></div>
-  <div class="muted small" style="text-align:center" id="lv-info">—</div>
-  <canvas id="mpitch" class="pitch-canvas"></canvas>
-  <div class="fm-line" id="lv-ticker">Разминка…</div>
-  <div class="btnrow" style="justify-content:center">
-    <button class="btn ghost small" data-act="match-timeout">Тайм-аут · замены</button>
-    <button class="btn ghost small" data-act="match-menu-open">Меню матча</button>
-    <button class="btn ghost small" data-act="landscape">Поле шире</button>
-  </div>
-  <div class="note">Большую часть матча мяч в ногах. Поверните телефон — поле станет шире. Тайм-аут останавливает часы: в паузе доступны замены из запаса (сначала отметьте их на вкладке «Состав»).</div>`;
+  <section class="live-match-hub">
+    <div class="live-match-brand"><span>MATCH DAY</span><b id="lv-play-state">×${currentSpeed}</b></div>
+    <div class="match-head live-scoreboard"><span id="lv-hs" class="grow small muted" style="text-align:right"></span>
+      <div class="score" id="lv-score">0:0</div><span id="lv-as" class="grow small muted"></span></div>
+    <div class="muted small" style="text-align:center" id="lv-info">—</div>
+    <canvas id="mpitch" class="pitch-canvas"></canvas>
+    <div class="fm-line" id="lv-ticker">Разминка…</div>
+    <div class="match-toolbar">
+      <button class="btn small" data-act="${playAct}">${playLabel}</button>
+      <div class="match-speed-controls" aria-label="Скорость матча"><span>Темп</span>${[.5, 1, 2, 4, 8].map(v => `<button class="${v === currentSpeed ? 'on' : ''}" data-act="match-speed" data-v="${v}">×${v}</button>`).join('')}</div>
+      <button class="btn ghost small" data-act="match-menu-open">Меню</button>
+      <button class="btn ghost small" data-act="landscape">Поле шире</button>
+    </div>
+    ${isPaused && !G.sheet ? `<div class="match-pause-banner"><b>${atHalf ? 'Перерыв' : 'Матч на паузе'}</b><button class="btn small" data-act="${playAct}">${playLabel}</button></div>` : ''}
+    <div class="note">В меню матча можно менять тактику и состав без выхода на главный экран. Перетащите запасного на игрока основы или поменяйте двух игроков местами. Жёлтый — небольшая смена позиции, красный — серьёзная.</div>
+  </section>`;
 }
 function scrMatchEnd() {
   const { fx, r, live } = G.ui.lastResult || {};
@@ -866,7 +1358,7 @@ function scrMatchEnd() {
   const my = myHome ? r.hg : r.ag, opp = myHome ? r.ag : r.hg;
   const verdict = my > opp ? 'Победа' : my === opp ? 'Ничья' : 'Поражение';
   const ratings = ENG.playersOf(G.S, G.S.clubId).filter(p => p.apps && p.ratingSum).sort((a, b) => (b.ratingSum / b.apps) - (a.ratingSum / a.apps)).slice(0, 5)
-    .map(p => `<div class="row" style="cursor:default">${posTag(p)}<div class="grow">${esc(pname(p))}</div><b>${(p.ratingSum / p.apps).toFixed(2)}</b></div>`).join('');
+    .map(p => `<div class="row" style="cursor:default">${posTag(p)}<div class="grow">${esc(pname(p))}${injuryTag(p)}</div><b>${(p.ratingSum / p.apps).toFixed(2)}</b></div>`).join('');
   const scorers = (live ? live.events.filter(e => e.kind === 'goal') : [])
     .map(e => `<div class="row" style="cursor:default"><span class="muted small" style="width:40px">${e.min}'</span><div class="grow">${esc(e.text)}</div><span class="tag">${e.side === 'h' ? (myHome ? '+' : '−') : (myHome ? '−' : '+')}</span></div>`).join('');
   return `
@@ -888,44 +1380,105 @@ function trophyOverlay() {
     <div class="btnrow"><button class="btn" data-act="trophy-honors">В заслуги</button>
     <button class="btn ghost" data-act="match-back">Дальше</button></div></div>`;
 }
-function MENU_HTML() {
+function matchSheetSpeed(snap) {
+  const current = snap ? snap.speed : 1;
+  return `<div class="match-speed-row"><span>Скорость симуляции</span><div>${[.5, 1, 2, 4, 8].map(v => `<button class="${v === current ? 'on' : ''}" data-act="match-speed" data-v="${v}">×${v}</button>`).join('')}</div></div>`;
+}
+function matchSheetTabs() {
+  const tab = G.ui.matchTab || 'controls';
+  return `<div class="match-sheet-tabs">${[['controls', 'Управление'], ['tactics', 'Тактика и состав'], ['subs', 'Замены']].map(([id, name]) =>
+    `<button class="${tab === id ? 'on' : ''}" data-act="match-tab" data-v="${id}">${name}</button>`).join('')}</div>`;
+}
+function matchSheetControls(snap) {
+  const playAct = snap && snap.halftime ? 'match-second-half' : snap && snap.paused ? 'match-resume' : 'match-pause';
+  const playLabel = snap && snap.halftime ? 'Второй тайм' : snap && snap.paused ? 'Продолжить матч' : 'Пауза';
+  return `<div class="match-control-grid">
+    <button class="match-primary-control" data-act="${playAct}"><span>${snap && snap.halftime ? 'ПЕРЕРЫВ' : snap && snap.paused ? 'ПАУЗА' : 'МАТЧ ИДЁТ'}</span><b>${playLabel}</b></button>
+    <div class="match-quick-actions"><button data-act="match-tab" data-v="tactics"><b>Тактика</b><span>Формация, стиль, состав</span></button>
+      <button data-act="match-tab" data-v="subs"><b>Замены</b><span>${snap ? snap.subsUsed : 0} из 5 использовано</span></button></div>
+  </div>
+  ${matchSheetSpeed(snap)}
+  <div class="match-stats-strip"><div><span>Счёт</span><b>${snap ? snap.hg + ':' + snap.ag : '0:0'}</b></div>
+    <div><span>Минута</span><b>${snap ? snap.minute : 0}'</b></div>
+    <div><span>xG</span><b>${snap ? snap.xgH.toFixed(2) + ':' + snap.xgA.toFixed(2) : '0.00:0.00'}</b></div></div>
+  <div class="note">Меню не выходит из матча. Часы остановлены, пока вы меняете тактику или состав.</div>`;
+}
+function matchSheetTactics() {
+  const tac = G.S.tactics;
+  return `<div class="match-tactics-heading"><div><span>МАТЧ-ПЛАН</span><b>${esc(tacSummary(tac))}</b></div><button class="btn ghost small" data-act="tac-auto">Авто-состав</button></div>
+  <div class="chips">${GD.FORM_LIST.map(f => `<button class="chip ${tac.formation === f ? 'on' : ''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
+  <div class="live-tactics-layout">
+    <div class="pitch match-tactics-pitch" id="match-tac-pitch">${tacticsDots('match')}</div>
+    <div class="match-live-bench"><div class="lineup-bench-head"><b>Запас</b><span>Перетащите на позицию</span></div><div class="lineup-bench-list">${lineupBenchRows(true)}</div></div>
+  </div>
+  <div class="chips">${GD.TACTICS.map(t => `<button class="chip ${tac.style === t.id ? 'on' : ''}" data-act="style" data-v="${t.id}">${t.name}</button>`).join('')}</div>
+  <div class="match-slider-grid">${SLIDERS.map(s => {
+    const value = s[0] === 'mentality' ? tac.mentality : tac[s[0]] ?? 2;
+    const word = sliderWord(s[0], value);
+    return `<label class="field"><span class="muted">${s[1]}: <b class="slider-word" data-slider-word="${s[0]}">${word}</b></span>
+      <input type="range" data-act="slider" data-k="${s[0]}" min="${s[0] === 'mentality' ? -2 : 0}" max="${s[0] === 'mentality' ? 2 : 4}" value="${value}" aria-valuetext="${word}"></label>`;
+  }).join('')}</div>
+  <div class="note">Рейтинг на поле учитывает позицию: жёлтый — небольшая потеря, красный — серьёзная. Два игрока основы можно поменять местами перетаскиванием.</div>`;
+}
+function matchSheetSubs() {
   const tac = G.S.tactics;
   const starters = ENG.lineupPlayers(G.S, G.S.clubId, tac);
-  const bench = ENG.benchOf(G.S).filter(p => ENG.available(p));
+  const namedBench = ENG.benchOf(G.S).filter(p => ENG.available(p) && !starters.some(s => s.pid === p.id));
+  const bench = (namedBench.length ? namedBench : ENG.playersOf(G.S, G.S.clubId).filter(p => ENG.available(p) && !starters.some(s => s.pid === p.id)))
+    .slice().sort((a, b) => ENG.dynRating(b) - ENG.dynRating(a));
   const selOut = G.ui.menuOut;
-  const subRows = () => selOut
-    ? (bench.length
-      ? bench.map(p => `<button class="row" data-act="live-sub" data-out="${selOut}" data-inn="${p.id}">
-          ${posTag(p)}<div class="grow">${esc(pname(p))} <span class="muted small">тонус ${p.cond}</span></div>${rateChip(p)}</button>`).join('')
-      : '<div class="note">Запас пуст. Откройте «Состав» → стрелка слева → «на замену». Без запаса замены в матче недоступны.</div>')
-    : starters.map(s => S_player(s.pid)).filter(Boolean).map(p => `
-        <button class="row" data-act="menu-pick-out" data-pid="${p.id}">
-          ${posTag(p)}<div class="grow">${esc(pname(p))} <span class="muted small">тонус ${p.cond}</span></div>${rateChip(p)}</button>`).join('');
-  return `
-  <h2>${MENU_TITLE()}<button class="x" data-act="match-resume">×</button></h2>
-  <div class="chips">${GD.FORM_LIST.map(f => `<button class="chip ${tac.formation === f ? 'on' : ''}" data-act="formation" data-v="${f}">${f}</button>`).join('')}</div>
-  ${SLIDERS.map(s => `<label class="field"><span class="muted">${s[1]}</span>
-    <input type="range" data-act="slider" data-k="${s[0]}" min="${s[0] === 'mentality' ? -2 : 0}" max="${s[0] === 'mentality' ? 2 : 4}" value="${s[0] === 'mentality' ? tac.mentality : tac[s[0]] ?? 2}"></label>`).join('')}
-  <div class="chips">${GD.TACTICS.map(t => `<button class="chip ${tac.style === t.id ? 'on' : ''}" data-act="style" data-v="${t.id}">${t.name}</button>`).join('')}</div>
-  <h3 style="margin-top:12px">Замены (${G.ui.liveSubsUsed || 0}/5)</h3>
-  ${selOut ? `<div class="note">Снять: <b>${esc(pname(S_player(selOut)))}</b> — выберите, кто выйдет из запаса.</div>` : '<div class="muted small">Сначала снимите игрока, затем выберите замену из запаса.</div>'}
-  <div class="rowlist">${subRows()}</div>
-  <div class="btnrow">
-    ${window.MatchView && MatchView.htDone ? '<button class="btn" data-act="match-resume">Продолжить матч</button>' : '<button class="btn" data-act="match-second-half">Второй тайм</button>'}
-    <button class="btn ghost" data-act="match-resume">Закрыть</button>
+  const outSlot = starters.find(s => s.pid === selOut);
+  const rows = selOut
+    ? (bench.length ? bench.map(p => `<button class="row" data-act="live-sub" data-out="${selOut}" data-inn="${p.id}">
+        ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${GD.POS_FULL[p.pos]} · тонус ${p.cond}</div></div>${outSlot ? slotFitChip(p, outSlot.pos) : rateChip(p)}</button>`).join('')
+      : '<div class="note">Запас пуст. Добавьте игроков через «Состав» до матча или используйте авто-состав.</div>')
+    : starters.map(s => { const p = S_player(s.pid); return p ? `<button class="row" data-act="menu-pick-out" data-pid="${p.id}">
+        ${posTag(p)}<div class="grow"><b>${esc(pname(p))}</b><div class="sub muted">${GD.POS_FULL[s.pos]} · тонус ${p.cond}</div></div>${slotFitChip(p, s.pos)}</button>` : ''; }).join('');
+  return `<div class="match-subs-heading"><div><span>ЗАМЕНЫ</span><b>${G.ui.liveSubsUsed || 0} / 5</b></div>${selOut ? '<button class="btn ghost small" data-act="menu-cancel-sub">Отмена</button>' : ''}</div>
+    ${selOut ? `<div class="note">Снять: <b>${esc(pname(S_player(selOut)))}</b> — выберите игрока из запаса.</div>` : '<div class="muted small">Сначала выберите игрока, которого хотите снять.</div>'}
+    <div class="rowlist match-sub-list">${rows}</div>`;
+}
+function MENU_HTML() {
+  const snap = window.MatchView ? MatchView.snapshot() : null;
+  const tab = G.ui.matchTab || 'controls';
+  const home = snap ? ENG.clubById(G.S, snap.home) : null;
+  const away = snap ? ENG.clubById(G.S, snap.away) : null;
+  const content = tab === 'tactics' ? matchSheetTactics() : tab === 'subs' ? matchSheetSubs() : matchSheetControls(snap);
+  return `<div class="match-sheet-inner">
+    <div class="match-sheet-top"><div class="match-sheet-brand"><span>MATCH DAY</span><b>${snap && snap.halftime ? 'HALF TIME' : snap && snap.paused ? 'PAUSED' : 'LIVE'}</b></div>
+      <button class="x" data-act="close-sheet" aria-label="Закрыть меню">×</button></div>
+    ${home && away ? `<div class="match-sheet-score">${badge(home)}<b>${esc(home.short)}</b><strong>${snap.hg}:${snap.ag}</strong><b>${esc(away.short)}</b>${badge(away)}</div>` : ''}
+    ${matchSheetTabs()}
+    <div class="match-sheet-content">${content}</div>
   </div>`;
 }
 window.MENU_HTML = MENU_HTML;
 
+function importantMessageAlert() {
+  if (!G.S) return '';
+  const msg = (G.S.inbox || []).find(m => m.id === G.ui.importantAlert);
+  if (!msg) return '';
+  const player = msg.playerId ? S_player(msg.playerId) : null;
+  return `<div class="important-alert" data-act="dismiss-important" role="dialog" aria-modal="true" aria-labelledby="important-title">
+    <div class="important-card important-${esc(msg.kind || 'message')}" data-act="sheet-only">
+      <div class="important-kicker">${msg.kind === 'injury' ? '✚ Медицинский штаб' : msg.kind === 'job' ? 'Тренерская карьера' : 'Важное сообщение'} · ${ENG.fmtDDMM(msg.date)}</div>
+      <h2 id="important-title">${esc(msg.subject)}</h2>
+      <div class="important-from">${esc(msg.from)}</div>
+      <p>${esc(msg.body)}</p>
+      ${player ? `<div class="important-player">${injuryTag(player)}<b>${esc(pname(player))}</b><span>${GD.POS_ABBR[player.pos]} · ${player.age} лет</span></div>` : ''}
+      <div class="btnrow"><button class="btn" data-act="important-open">Открыть почту</button><button class="btn ghost" data-act="dismiss-important">Закрыть</button></div>
+    </div></div>`;
+}
+
 // ---------- render ----------
 const SCREENS = {
-  boot: scrBoot, honors: scrHonors, pick: scrPick, kits: scrKits, desk: scrDesk, squad: scrSquad,
-  player: () => { const p = S_player(G.ui.viewingPlayer); return p ? playerCard(p) : '<div class="note">Игрок не найден.</div>'; },
-  tactics: scrTactics, league: scrLeague, market: scrMarket, inbox: scrInbox, money: scrMoney,
-  calendar: scrCalendar, cups: scrCups, sacked: scrSacked,
+  boot: scrBoot, honors: scrHonors, slots: scrSlots, settings: scrSettings, pick: scrPick, kits: scrKits, desk: scrDesk, squad: scrSquad,
+  player: () => { const p = S_player(G.ui.viewingPlayer); return p ? (p.youth ? youthPlayerCard(p) : playerCard(p)) : '<div class="note">Игрок не найден.</div>'; },
+  tactics: scrTactics, academy: scrAcademy, objectives: scrObjectives, league: scrLeague, market: scrMarket, inbox: scrInbox, money: scrMoney,
+  calendar: scrCalendar, cups: scrCups, euro: scrEuro, sacked: scrSacked,
   'match-pre': scrMatchPre, 'match-live': scrMatchLive, 'match-end': scrMatchEnd,
 };
-const NAV = [['desk', 'Кабинет'], ['squad', 'Состав'], ['tactics', 'Тактика'], ['league', 'Лига'], ['market', 'Рынок'], ['other', 'Прочее']];
+const NAV = [['desk', 'Кабинет'], ['squad', 'Состав'], ['tactics', 'Тактика'], ['academy', 'Академия'], ['league', 'Лига'], ['market', 'Рынок'], ['other', 'Прочее']];
 function sheetOther() {
   return `
   <h2>Прочее<button class="x" data-act="close-sheet">×</button></h2>
@@ -933,6 +1486,10 @@ function sheetOther() {
     <button class="row" data-act="nav" data-v="inbox"><div class="grow">Почта</div><span class="muted">→</span></button>
     <button class="row" data-act="nav" data-v="money"><div class="grow">Финансы</div><span class="muted">→</span></button>
     <button class="row" data-act="nav" data-v="calendar"><div class="grow">Календарь</div><span class="muted">→</span></button>
+    <button class="row" data-act="nav" data-v="cups"><div class="grow">Кубок России</div><span class="muted">→</span></button>
+    <button class="row" data-act="nav" data-v="euro"><div class="grow">Еврокубки и рейтинг</div><span class="muted">→</span></button>
+    <button class="row" data-act="nav" data-v="academy"><div class="grow">Молодёжная академия</div><span class="muted">→</span></button>
+    <button class="row" data-act="nav" data-v="objectives"><div class="grow">Задачи сезона</div><span class="muted">→</span></button>
     <button class="row" data-act="honors"><div class="grow">Заслуги</div><span class="muted">→</span></button>
     <button class="row" data-act="manual-save"><div class="grow">Сохранить вручную</div></button>
   </div>
@@ -941,13 +1498,14 @@ function sheetOther() {
   <div class="muted small">${esc((ENG.DIFFS[G.S.difficulty] || {}).desc || '')}</div>
   <h3 style="margin-top:14px">Время матча, оба тайма</h3>
   <div class="chips">${[2, 3, 5].map(m => `<button class="chip ${G.S.matchMins === m ? 'on' : ''}" data-act="matchmins" data-v="${m}">${m} мин</button>`).join('')}</div>
-  <div class="btnrow" style="margin-top:16px"><button class="btn danger" data-act="delete-career">Удалить карьеру</button></div>`;
+  <div class="btnrow" style="margin-top:16px"><button class="btn danger" data-act="resign">Расторгнуть контракт и уйти</button>
+    <button class="btn danger" data-act="delete-career">Удалить карьеру</button></div>`;
 }
 function render() {
   if (window.MatchView && window.MatchView.active && G.screen !== 'match-live') window.MatchView.stop();
   const app = document.getElementById('app');
   let html = '';
-  const preScreens = ['boot', 'honors', 'pick', 'kits', 'sacked'];
+  const preScreens = ['boot', 'honors', 'slots', 'settings', 'pick', 'kits', 'sacked'];
   if (preScreens.includes(G.screen)) {
     html = (SCREENS[G.screen] || scrBoot)();
   } else if (!G.S || G.S.sacked && G.screen !== 'sacked') {
@@ -956,11 +1514,12 @@ function render() {
     html = (SCREENS[G.screen] || scrDesk)();
   }
   const inCareer = G.S && !preScreens.includes(G.screen);
-  const nav = inCareer ? `<nav class="tabs">${NAV.map(([v, n]) =>
+  const nav = inCareer && G.screen !== 'match-live' ? `<nav class="tabs">${NAV.map(([v, n]) =>
     `<button class="${G.screen === v ? 'on' : ''}" data-act="nav" data-v="${v}">${n}</button>`).join('')}</nav>` : '';
-  const sheet = G.sheet ? `<div class="sheet-wrap" data-act="close-sheet"><div class="sheet">${G.sheet.html}</div></div>`
+  const sheet = G.sheet ? `<div class="sheet-wrap${G.sheet.kind === 'match' ? ' match-sheet-wrap' : ''}" data-act="close-sheet"><div class="sheet${G.sheet.kind === 'match' ? ' match-sheet' : ''}">${G.sheet.html}</div></div>`
     : (G.screen === 'other' && G.S ? `<div class="sheet-wrap"><div class="sheet">${sheetOther()}</div></div>` : '');
-  app.innerHTML = html + trophyOverlay();
+  const closing = G.ui.seasonClosing ? `<div class="season-loading" role="status" aria-live="polite"><div class="season-loading-card"><div class="season-spinner"></div><div class="kicker">Завершение сезона</div><h2>${esc(G.ui.closeProgress || 'Подводим итоги…')}</h2><p class="muted small">Таблицы, история клубов, контракты и новое расписание.</p></div></div>` : '';
+  app.innerHTML = html + trophyOverlay() + importantMessageAlert() + closing;
   document.body.dataset.screen = G.screen;
   document.querySelectorAll('nav.tabs').forEach(n => n.remove());
   if (nav) document.body.insertAdjacentHTML('beforeend', nav);
@@ -970,7 +1529,7 @@ function render() {
   if (G.screen === 'match-live' && window.MatchView) window.MatchView.start();
   if (G.screen === 'match-end') { G.ui.lastResult.played = true; }
   document.querySelectorAll('.back-top').forEach(n => n.remove());
-  const showBack = inCareer && ['squad', 'tactics', 'league', 'market', 'other', 'player', 'calendar', 'inbox', 'money'].includes(G.screen);
+  const showBack = inCareer && ['squad', 'tactics', 'academy', 'objectives', 'league', 'market', 'other', 'player', 'calendar', 'cups', 'euro', 'inbox', 'money'].includes(G.screen);
   document.body.classList.toggle('has-back', showBack);
   if (showBack) {
     document.body.insertAdjacentHTML('beforeend', '<button class="back-top" data-act="go-back" title="Назад">←</button>');
@@ -984,9 +1543,119 @@ function updateTacSummary() {
 function renderMarketList() { render(); }
 function adaptWrap(p, pos) { return ENG.ADJ[p.pos] && ENG.ADJ[p.pos][pos] !== undefined ? ENG.ADJ[p.pos][pos] : 0.28; }
 
+// ---------- lineup drag & drop ----------
+let lineupDrag = null, lineupGhost = null, lineupDropTarget = null, suppressLineupClickUntil = 0;
+function clearLineupDragVisual() {
+  if (lineupGhost) lineupGhost.remove();
+  if (lineupDropTarget) lineupDropTarget.classList.remove('drop-target');
+  document.querySelectorAll('.lineup-drag-source').forEach(el => el.classList.remove('lineup-drag-source'));
+  document.body.classList.remove('lineup-dragging');
+  lineupGhost = null;
+  lineupDropTarget = null;
+}
+function beginLineupDrag(e) {
+  if (!G.S || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const tile = e.target.closest('[data-drag-pid]');
+  if (!tile) return;
+  lineupDrag = {
+    pid: tile.dataset.dragPid,
+    kind: tile.dataset.dragKind,
+    slot: tile.dataset.dragSlot === undefined ? -1 : +tile.dataset.dragSlot,
+    pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY,
+    moved: false, source: tile,
+  };
+  if (tile.setPointerCapture) {
+    try { tile.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+}
+function moveLineupDrag(e) {
+  if (!lineupDrag || e.pointerId !== lineupDrag.pointerId) return;
+  const distance = Math.hypot(e.clientX - lineupDrag.startX, e.clientY - lineupDrag.startY);
+  if (!lineupDrag.moved && distance < 7) return;
+  e.preventDefault();
+  if (!lineupDrag.moved) {
+    lineupDrag.moved = true;
+    const p = S_player(lineupDrag.pid);
+    lineupGhost = document.createElement('div');
+    lineupGhost.className = 'lineup-drag-ghost';
+    lineupGhost.textContent = p ? p.first + ' ' + p.last + ' · ' + p.pos : 'Игрок';
+    document.body.appendChild(lineupGhost);
+    lineupDrag.source.classList.add('lineup-drag-source');
+    document.body.classList.add('lineup-dragging');
+    if (inLiveMatch()) MatchView.pauseForMenu();
+  }
+  lineupGhost.style.transform = `translate3d(${e.clientX + 12}px, ${e.clientY + 12}px, 0)`;
+  const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-drop-slot]') || null;
+  if (target !== lineupDropTarget) {
+    if (lineupDropTarget) lineupDropTarget.classList.remove('drop-target');
+    lineupDropTarget = target;
+    if (lineupDropTarget) lineupDropTarget.classList.add('drop-target');
+  }
+}
+function dropLineupPlayer(drag, target) {
+  if (!drag || !target) return;
+  const targetSlot = +target.dataset.dropSlot;
+  if (!Number.isInteger(targetSlot) || targetSlot < 0 || targetSlot > 10) return;
+  const tac = G.S.tactics;
+  const plan = ENG.lineupPlayers(G.S, G.S.clubId, tac);
+  const targetPlayer = plan.find(s => s.slot === targetSlot);
+  if (!targetPlayer || targetPlayer.pid === drag.pid) return;
+  if (inLiveMatch()) {
+    if (drag.kind === 'starter') {
+      const source = plan.find(s => s.slot === drag.slot);
+      if (!source) return;
+      const slots = tac.slots.slice();
+      slots[source.slot] = targetPlayer.pid;
+      slots[targetSlot] = drag.pid;
+      tac.slots = slots;
+      toast('Игроки поменялись позициями.');
+    } else {
+      if (!MatchView.doUserSub(targetPlayer.pid, drag.pid)) return;
+      toast('Замена выполнена перетаскиванием.');
+    }
+  } else {
+    const slots = tac.slots.slice();
+    if (drag.kind === 'starter') {
+      const source = plan.find(s => s.slot === drag.slot);
+      if (!source) return;
+      slots[source.slot] = targetPlayer.pid;
+      slots[targetSlot] = drag.pid;
+      toast('Игроки поменялись позициями.');
+    } else {
+      slots[targetSlot] = drag.pid;
+      toast('Игрок назначен на позицию.');
+    }
+  }
+  G.ui.selectedSlot = -1;
+  G.ui.menuOut = null;
+  refreshAfterTacticsChange();
+}
+function endLineupDrag(e) {
+  if (!lineupDrag || e.pointerId !== lineupDrag.pointerId) return;
+  if (lineupDrag.moved) {
+    e.preventDefault();
+    suppressLineupClickUntil = Date.now() + 350;
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-drop-slot]') || lineupDropTarget;
+    dropLineupPlayer(lineupDrag, target);
+  }
+  lineupDrag = null;
+  clearLineupDragVisual();
+}
+function cancelLineupDrag(e) {
+  if (!lineupDrag || e.pointerId !== lineupDrag.pointerId) return;
+  lineupDrag = null;
+  clearLineupDragVisual();
+}
+
 // ---------- global event wiring ----------
 function initEvents() {
+  document.body.addEventListener('pointerdown', beginLineupDrag, { passive: true });
+  document.body.addEventListener('pointermove', moveLineupDrag, { passive: false });
+  document.body.addEventListener('pointerup', endLineupDrag, { passive: false });
+  document.body.addEventListener('pointercancel', cancelLineupDrag, { passive: true });
   document.body.addEventListener('click', e => {
+    if (Date.now() < suppressLineupClickUntil) { e.preventDefault(); e.stopPropagation(); return; }
     const t = e.target.closest('[data-act]');
     if (!t) return;
     const act = t.dataset.act;
@@ -1003,16 +1672,17 @@ function initEvents() {
   });
   document.body.addEventListener('change', e => {
     if (e.target.dataset.act === 'market-floor') render();
-    if (e.target.id === 'mk-search') render();
+    if (e.target.id === 'mk-search' || e.target.id === 'career-search' || e.target.id === 'career-league') render();
   });
 }
 
-return { esc, badge, ovrCls, posTag, pname, myNextFixture, avgCond, trophySvg,
+return { esc, badge, ovrCls, posTag, pname, injuryTag, myNextFixture, avgCond, trophySvg,
   shirtSvg, shortsSvg, socksSvg, KIT_PATTERNS, kitDefaults, kitDraft, kitRepaint, kitGkAuto, kitColorName, colorDist,
-  scrBoot, scrHonors, scrPick, scrKits, scrDesk, scrSquad, playerCard, squadRows,
-  scrTactics, scrLeague, scrMarket, scrInbox, scrMoney, scrCalendar, scrCups, scrSacked,
-  scrMatchPre, scrMatchLive, scrMatchEnd, render, initEvents, updateTacSummary, renderMarketList,
-  MENU_HTML, benchSheetHtml, euroTitle, euroStageName, tableHtml, tacSummary };
+  scrBoot, scrHonors, scrSlots, scrSettings, scrPick, scrKits, scrDesk, scrSquad, playerCard, squadRows,
+  scrAcademy, youthPlayerCard, scrObjectives, objectiveBoardHtml,
+  scrTactics, scrLeague, scrMarket, scrInbox, scrMoney, scrCalendar, scrCups, scrEuro, scrSacked,
+  scrMatchPre, scrMatchLive, scrMatchEnd, render, initEvents, updateTacSummary, updateTacticSlider, renderMarketList,
+  slotFit, slotFitChip, tacticsDots, lineupBenchRows, MENU_HTML, benchSheetHtml, euroTitle, euroStageName, tableHtml, tacSummary };
 })();
 window.UI = UI;
 window.render = UI.render;
