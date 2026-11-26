@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="КАБИНЕТ — футбольный менеджер в браузере: РПЛ, ФНЛ, кубок, еврокубки, трансферы, тактика и живые матчи.">
+<meta name="theme-color" content="#101612">
+<title>КАБИНЕТ · Футбольный менеджер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast" aria-live="polite"></div>
+<script src="js/data.js"></script>
+<script src="js/realplayers.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/game.js"></script>
+<script src="js/match.js"></script>
+<script src="js/ui.js"></script>
+<script>
+  UI.initEvents();
+  boot().then(render).catch(() => {
+    document.getElementById('app').innerHTML = '<div class="note">Не удалось открыть кабинет. Проверьте доступ к хранилищу браузера и обновите страницу.</div>';
+  });
+</script>
+</body>
+</html>
